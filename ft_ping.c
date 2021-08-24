@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/17 18:08:00 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/24 15:18:13 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,9 +17,15 @@
 #include <arpa/inet.h>
 #include <stdlib.h> // malloc() free()
 #include <unistd.h> // getuid()
-
+#include <errno.h>
+#include <string.h>
 #define DEST_IP "8.8.8.8"
 
+#ifdef __linux__
+	#define IS_LINUX (1)
+#else
+	#define IS_LINUX (0)
+#endif
 
 #if BYTE_ORDER == BIG_ENDIAN
 
@@ -70,7 +76,7 @@ typedef struct icmpheader {
 
 	u_char icmp_type;				// type of message
 	u_char icmp_code;				// type sub code
-	u_short icmp_cksum;				// ones complement cksum of struct
+	u_short icmp_cksum;				// ones complement checksum of struct
 } __attribute__((packed)) icmphdr;
 
 unsigned short in_cksum(void *ptr, unsigned int len) {
@@ -115,7 +121,6 @@ int		main(void) {
 	struct sockaddr_in from;
 
 	whereto.sin_family = AF_INET;
-	whereto.sin_len = sizeof(struct sockaddr_in);
 	inet_pton(AF_INET, DEST_IP, &(whereto.sin_addr));
 
 
@@ -131,19 +136,33 @@ int		main(void) {
 	pkt->icmp_cksum = in_cksum(pkt, 4);
 
 	uid_t uid = getuid();
-	printf("uid: %u\n", uid);
-	if (uid != 0)
+	if (uid != 0 && !IS_LINUX)
 		s = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
 	else
 		s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
-	// int hold = IP_MAXPACKET + 128;
-	// (void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
-	// if (getuid() == 0)
-	// 	(void)setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
+	printf("socket: %d\n", s);
+	if (s < 0) {
+
+		printf("%s\n", strerror(errno));
+		exit(1);
+	}
+
+
+
+	int hold = IP_MAXPACKET + 128;
+	(void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
+	if (getuid() == 0)
+		(void)setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
+
 
 	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct icmp), 0, (struct sockaddr*)&whereto, sizeof(whereto));
 	printf("try to send: %zu\nsent: %zd\n", sizeof(struct icmp), sent);
+	if (sent < 0) {
+
+		printf("%s\n", strerror(errno));
+		exit(1);
+	}
 
 	iov[0].iov_base = recv_packet;
 	iov[0].iov_len = sizeof(recv_packet);
@@ -153,6 +172,11 @@ int		main(void) {
 	msg.msg_namelen = sizeof(from);
 	ssize_t recv = recvmsg(s, &msg, 0);
 	printf("recv: %zd\n", recv);
+	if (recv < 0) {
+
+		printf("%s\n", strerror(errno));
+		exit(1);
+	}
 
 	return (0);
 }
