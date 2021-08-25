@@ -6,11 +6,11 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/24 15:18:13 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/25 13:09:28 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <sys/socket.h> // sendto() socket()
+#include <sys/socket.h> // sendto() socket() CMSG_FIRSTHDR() CMSG_NXTHDR()
 #include <netinet/in.h> // IPPROTO_ICMP
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
@@ -19,7 +19,13 @@
 #include <unistd.h> // getuid()
 #include <errno.h>
 #include <string.h>
-#define DEST_IP "8.8.8.8"
+#include <netinet/if_ether.h> // struct ether_header
+
+#include <stdio.h>
+
+#define SO_TRAFFIC_CLASS	0x1086
+#define PROCESS_ID			0
+#define DEST_IP				"8.8.8.8"
 
 #ifdef __linux__
 	#define IS_LINUX (1)
@@ -109,6 +115,40 @@ unsigned short in_cksum(void *ptr, unsigned int len) {
 // 	ip_header->sum = in_cksum(ip_header, 10);
 // }
 
+static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
+
+	u_char *cp;
+	struct icmp *icp;
+	struct ip *ip;
+	int hlen;
+	int recv_len;
+
+	/* Check the IP header */
+	ip = (struct ip *)buf;
+	hlen = ip->ip_hl << 2;
+	recv_len = cc;
+	if (cc < hlen + ICMP_MINLEN) {
+		return;
+	}
+
+	/* Now the ICMP part */
+	cc -= hlen;
+	icp = (struct icmp *)(buf + hlen);
+	if (icp->icmp_type == ICMP_ECHOREPLY) {
+		if (icp->icmp_id != PROCESS_ID)
+			return;			/* 'Twas not our ECHO */
+		printf("icmp_type: %u\n", icp->icmp_type);
+		printf("icmp_code: %u\n", icp->icmp_code);
+		printf("icmp_dun.id_data: %p\n", (void*)&icp->icmp_dun.id_data);
+		printf("&buf[hlen + ICMP_MINLEN]: %p\n", (void*)&buf[hlen + ICMP_MINLEN]);
+		printf("&buf[tot_len]: %p\n", (void*)&buf[cc]);
+	} else {
+
+		printf("not a echoreply\n");
+		exit(1);
+	}
+}
+
 
 int		main(void) {
 
@@ -129,7 +169,7 @@ int		main(void) {
 	pkt->icmp_cksum = 0;
 
 	// TODO: put UNIX process ID
-	pkt->icmp_hun.ih_idseq.icd_id = 0;
+	pkt->icmp_hun.ih_idseq.icd_id = PROCESS_ID;
 	// TODO: increment this
 	pkt->icmp_hun.ih_idseq.icd_seq = 0;
 
@@ -176,7 +216,24 @@ int		main(void) {
 
 		printf("%s\n", strerror(errno));
 		exit(1);
+	} else if (recv == 0) {
+
+		printf("recvmsg len 0, Connection closed");
+		exit(1);
 	}
+
+	int tc = -1;
+	struct cmsghdr *cmsg;
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+
+				if (cmsg->cmsg_level == SOL_SOCKET &&
+					cmsg->cmsg_type == SO_TRAFFIC_CLASS &&
+					cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
+					/* Copy to avoid alignment problems: */
+					memcpy(&tc, CMSG_DATA(cmsg), sizeof(tc));
+				}
+		}
+	pr_pack((char *)msg.msg_iov->iov_base, recv, &from, tc);
 
 	return (0);
 }
