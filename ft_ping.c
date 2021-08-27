@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/25 13:09:28 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/27 18:12:47 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,11 +20,12 @@
 #include <errno.h>
 #include <string.h>
 #include <netinet/if_ether.h> // struct ether_header
-
+#include <unistd.h> // getpid()
 #include <stdio.h>
+#include <netdb.h> //  getaddrinfo()
 
+#include <assert.h>
 #define SO_TRAFFIC_CLASS	0x1086
-#define PROCESS_ID			0
 #define DEST_IP				"8.8.8.8"
 
 #ifdef __linux__
@@ -33,87 +34,143 @@
 	#define IS_LINUX (0)
 #endif
 
-#if BYTE_ORDER == BIG_ENDIAN
+// typedef struct ipheader {
 
-#define PING_HTONS(n) (n)
-#define PING_NTOHS(n) (n)
-#define PING_HTONL(n) (n)
-#define PING_NTOHL(n) (n)
+// #if __BYTE_ORDER == __LITTLE_ENDIAN
+// 	unsigned int ihl:4;			// Internet Header Length: value between 5 and 15 depending of Options (always 5 for icmp)
+// 	unsigned int version:4;		// Version: 4 for ipv4
+// #elif __BYTE_ORDER == __BIG_ENDIAN
+// 	unsigned int version:4;
+// 	unsigned int ihl:4;
+// #endif
 
-#else
+// 	unsigned char tos;			// Type of Service: packet priority (0 for ping)
+// 	unsigned short int len;		// Total Length: total size of packet
+// 	unsigned short int id;		// Identifiaction: for defragmentation (don't use)
+// 	unsigned short int off;		// Flags + Offset: for defragmentation (don't use)
+// 	unsigned char ttl;			// Time to Live
+// 	unsigned char p;			// Protocol: (ICMP)
+// 	unsigned short int sum;		// Header checksum
+// 	unsigned int src;			// Source address
+// 	unsigned int dst;			// Destination address
+// } __attribute__((packed)) iphdr;
 
-#define PING_HTONS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
-#define PING_NTOHS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
+// typedef struct icmpheader {
 
-#define PING_HTONL(n) (((((unsigned long)(n) & 0xFF)) << 24) | \
-				((((unsigned long)(n) & 0xFF00)) << 8) | \
-				((((unsigned long)(n) & 0xFF0000)) >> 8) | \
-				((((unsigned long)(n) & 0xFF000000)) >> 24))
+// 	u_char icmp_type;				// type of message
+// 	u_char icmp_code;				// type sub code
+// 	u_short icmp_cksum;				// ones complement checksum of struct
+// } __attribute__((packed)) icmphdr;
 
-#define PING_NTOHL(n) (((((unsigned long)(n) & 0xFF)) << 24) | \
-				((((unsigned long)(n) & 0xFF00)) << 8) | \
-				((((unsigned long)(n) & 0xFF0000)) >> 8) | \
-				((((unsigned long)(n) & 0xFF000000)) >> 24))
-#endif
+// unsigned short in_cksum(void *ptr, unsigned int len) {
 
+// 	unsigned short *u_int16_ptr = (unsigned short *)ptr;
+// 	unsigned short checksum = 0;
 
-typedef struct ipheader {
+// 	u_int16_ptr[1] = 0; // set the checksum to 0 in the packet
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-	unsigned int ihl:4;			// Internet Header Length: value between 5 and 15 depending of Options (always 5 for icmp)
-	unsigned int version:4;		// Version: 4 for ipv4
-#elif __BYTE_ORDER == __BIG_ENDIAN
-	unsigned int version:4;
-	unsigned int ihl:4;
-#endif
+// 	for (int i = 0; i < len; i++)
+// 		checksum += u_int16_ptr[i];
 
-	unsigned char tos;			// Type of Service: packet priority (0 for ping)
-	unsigned short int len;		// Total Length: total size of packet
-	unsigned short int id;		// Identifiaction: for defragmentation (don't use)
-	unsigned short int off;		// Flags + Offset: for defragmentation (don't use)
-	unsigned char ttl;			// Time to Live
-	unsigned char p;			// Protocol: (ICMP)
-	unsigned short int sum;		// Header checksum
-	unsigned int src;			// Source address
-	unsigned int dst;			// Destination address
-} __attribute__((packed)) iphdr;
+// 	return (~checksum);
+// }
 
-typedef struct icmpheader {
+unsigned short in_cksum(unsigned short *ptr, unsigned int len) {
 
-	u_char icmp_type;				// type of message
-	u_char icmp_code;				// type sub code
-	u_short icmp_cksum;				// ones complement checksum of struct
-} __attribute__((packed)) icmphdr;
+	unsigned long checksum = 0;
+	while (len > 1) {
 
-unsigned short in_cksum(void *ptr, unsigned int len) {
+		checksum += *ptr++;
+		len -= sizeof(short);
+	}
 
-	unsigned short *u_int16_ptr = (unsigned short *)ptr;
-	unsigned short checksum = 0;
+	//if any bytes left, pad the bytes and add
+	if(len > 0)
+		checksum += ((*ptr)&htons(0xFF00));
 
-	u_int16_ptr[1] = 0; // set the checksum to 0 in the packet
+	//Fold checksum to 16 bits: add carrier to result
+	while (checksum >> 16)
+		checksum = (checksum & 0xffff) + (checksum >> 16);
 
-	for (int i = 0; i < len; i++)
-		checksum += u_int16_ptr[i];
-
-	return (~checksum);
+	checksum = ~checksum;
+	return ((unsigned short)checksum);
 }
 
-// struct ipheader*	build_iphdr() {
+struct ip	*build_iphdr(struct ip* ip_hdr) {
 
-// 	struct ipheader *ip_header = (struct ipheader*)malloc(sizeof(struct ipheader));
-// 	ip_header->version = 4;
-// 	ip_header->ihl = 5;
-// 	ip_header->tos = 0;
-// 	ip_header->ttl = 64;
-// 	ip_header->p = IPPROTO_ICMP;
-// 	ip_header->id = 0;
-// 	ip_header->off = 0;
-// 	inet_pton(AF_INET, "127.0.0.1", &(ip_header->src));
-// 	inet_pton(AF_INET, DEST_IP, &(ip_header->dst));
+	ip_hdr->ip_v = 4;
+	ip_hdr->ip_hl = 5;
+	ip_hdr->ip_tos = 0;
+	ip_hdr->ip_ttl = 64;
+	ip_hdr->ip_p = IPPROTO_ICMP;
+	ip_hdr->ip_id = getpid();
+	ip_hdr->ip_id = HTONS(ip_hdr->ip_id);
 
-// 	ip_header->len = 0; // TODO
-// 	ip_header->sum = in_cksum(ip_header, 10);
-// }
+	ip_hdr->ip_off = 0;
+	ip_hdr->ip_src.s_addr = INADDR_ANY;
+
+	if (inet_pton(AF_INET, DEST_IP, &(ip_hdr->ip_dst)) <= 0) {
+
+		printf("ip_dst\n");
+		exit(1);
+	}
+
+	ip_hdr->ip_len = sizeof(struct ip) + ICMP_MINLEN;
+	ip_hdr->ip_len = HTONS(ip_hdr->ip_len);
+
+	ip_hdr->ip_sum = in_cksum(ip_hdr, 20);
+	return (ip_hdr);
+}
+
+void	print_ip_hdr(struct ip* ip_hdr) {
+
+	printf("_____________________\n");
+	printf("ip_hl: %u\n", ip_hdr->ip_hl);
+	printf("ip_v: %u\n", ip_hdr->ip_v);
+	printf("ip_tos: %u\n", ip_hdr->ip_tos);
+	printf("ip_len: %u\n", NTOHS(ip_hdr->ip_len));
+	printf("ip_id: %u\n", NTOHS(ip_hdr->ip_id));
+	printf("ip_off: %u\n", ip_hdr->ip_off);
+	printf("ip_ttl: %u\n", ip_hdr->ip_ttl);
+	printf("ip_p: %u\n", ip_hdr->ip_p);
+	printf("ip_sum: %u\n", ip_hdr->ip_sum);
+
+	char addr[16];
+	inet_ntop(AF_INET, &ip_hdr->ip_src, addr, sizeof(addr));
+	printf("ip_src: %s\n", addr);
+	inet_ntop(AF_INET, &ip_hdr->ip_dst, addr, sizeof(addr));
+	printf("ip_dst: %s\n", addr);
+	printf("_____________________\n");
+}
+
+void	print_icmp_hdr(struct ip* ip_hdr) {
+
+
+	struct icmp* icmp_hdr = (struct icmp*)(ip_hdr + 1);
+	printf("_____________________\n");
+	printf("icmp_type: %u\n", icmp_hdr->icmp_type);
+	printf("icmp_type: %u\n", icmp_hdr->icmp_code);
+	printf("icmp_hun.ih_idseq.icd_id: %u\n", NTOHS(icmp_hdr->icmp_hun.ih_idseq.icd_id));
+	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
+	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
+	printf("_____________________\n");
+}
+
+struct ip	*build_icmphdr(struct ip* ip_hdr) {
+
+	struct icmp	*icmp_hdr = (struct icmp*)(ip_hdr + 1);
+	icmp_hdr->icmp_type = ICMP_ECHO;
+	icmp_hdr->icmp_code = 0;
+	icmp_hdr->icmp_cksum = 0;
+
+	icmp_hdr->icmp_hun.ih_idseq.icd_id = (unsigned short)getpid();
+	icmp_hdr->icmp_hun.ih_idseq.icd_id = HTONS(icmp_hdr->icmp_hun.ih_idseq.icd_id);
+	// TODO: increment this
+	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
+
+	icmp_hdr->icmp_cksum = in_cksum(icmp_hdr, 8);
+	return (ip_hdr);
+}
 
 static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
 
@@ -128,20 +185,31 @@ static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
 	hlen = ip->ip_hl << 2;
 	recv_len = cc;
 	if (cc < hlen + ICMP_MINLEN) {
-		return;
+
+		printf("received packet too small ?\n");
+		exit(1);
 	}
 
 	/* Now the ICMP part */
-	cc -= hlen;
 	icp = (struct icmp *)(buf + hlen);
 	if (icp->icmp_type == ICMP_ECHOREPLY) {
-		if (icp->icmp_id != PROCESS_ID)
-			return;			/* 'Twas not our ECHO */
+
+		if (icp->icmp_id != (unsigned short)getpid()) {
+
+			printf("not our packet\n");
+			exit(1);
+		}
+
 		printf("icmp_type: %u\n", icp->icmp_type);
 		printf("icmp_code: %u\n", icp->icmp_code);
 		printf("icmp_dun.id_data: %p\n", (void*)&icp->icmp_dun.id_data);
 		printf("&buf[hlen + ICMP_MINLEN]: %p\n", (void*)&buf[hlen + ICMP_MINLEN]);
 		printf("&buf[tot_len]: %p\n", (void*)&buf[cc]);
+		printf("data size: %zu\n", (size_t)&buf[cc] - (size_t)&buf[hlen + ICMP_MINLEN]);
+		printf("data size: %zu\n", (size_t)&buf[cc] - (size_t)&buf[2 * hlen + ICMP_MINLEN]);
+
+		print_ip_hdr((struct ip*)&buf[hlen + ICMP_MINLEN]);
+
 	} else {
 
 		printf("not a echoreply\n");
@@ -149,37 +217,43 @@ static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
 	}
 }
 
-
 int		main(void) {
 
-	struct icmp *pkt = (struct icmp*)calloc(1, sizeof(struct icmp));
-	int s; // socket
-	struct sockaddr_in whereto;
+	unsigned char recv_packet[IP_MAXPACKET] __attribute__((aligned(4)));
+	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN);
+	struct sockaddr_in whereto = (struct sockaddr_in){0};
+	struct sockaddr_in from = (struct sockaddr_in){0};
 	struct msghdr msg;
 	struct iovec iov[1];
-	unsigned char recv_packet[IP_MAXPACKET] __attribute__((aligned(4)));
-	struct sockaddr_in from;
+	int s; // socket
+
 
 	whereto.sin_family = AF_INET;
 	inet_pton(AF_INET, DEST_IP, &(whereto.sin_addr));
+	// whereto.sin_port = 80;
+	// whereto.sin_port = HTONS(whereto.sin_port);
+	whereto.sin_len = sizeof(whereto);
+	memset(whereto.sin_zero, 0, sizeof(whereto.sin_zero));
+	// struct addrinfo hints, *ret;
 
+	// //define what we want from getaddrinfo
+	// memset(&hints, 0, sizeof(hints));
+	// hints.ai_family = AF_INET; //IPv4
+	// hints.ai_socktype = SOCK_DGRAM; //UDP packets
+	// if (getaddrinfo(DEST_IP, "80", &hints, &ret) != 0) {
 
-	pkt->icmp_type = ICMP_ECHO;
-	pkt->icmp_code = 0;
-	pkt->icmp_cksum = 0;
+	// 	printf("nani\n");
+	// 	exit(1);
+	// }
 
-	// TODO: put UNIX process ID
-	pkt->icmp_hun.ih_idseq.icd_id = PROCESS_ID;
-	// TODO: increment this
-	pkt->icmp_hun.ih_idseq.icd_seq = 0;
-
-	pkt->icmp_cksum = in_cksum(pkt, 4);
+	pkt = build_iphdr(pkt);
+	pkt = build_icmphdr(pkt);
 
 	uid_t uid = getuid();
 	if (uid != 0 && !IS_LINUX)
 		s = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
 	else
-		s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+		s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
 	printf("socket: %d\n", s);
 	if (s < 0) {
@@ -190,17 +264,20 @@ int		main(void) {
 
 
 
-	int hold = IP_MAXPACKET + 128;
-	(void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
-	if (getuid() == 0)
-		(void)setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
+	// int hold = IP_MAXPACKET + 128;
+	// (void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
+	// if (getuid() == 0)
+	// 	(void)setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
+	int hold = 1;
+	setsockopt(s, IPPROTO_IP, IP_HDRINCL, (char *)&hold, sizeof(hold));
 
-
-	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct icmp), 0, (struct sockaddr*)&whereto, sizeof(whereto));
-	printf("try to send: %zu\nsent: %zd\n", sizeof(struct icmp), sent);
+	print_ip_hdr(pkt);
+	print_icmp_hdr(pkt);
+	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN, 0, (struct sockaddr*)&whereto, sizeof(struct sockaddr_in));
+	printf("try to send: %zu\nsent: %zd\n", sizeof(struct ip) + ICMP_MINLEN, sent);
 	if (sent < 0) {
 
-		printf("%s\n", strerror(errno));
+		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
 
@@ -218,7 +295,7 @@ int		main(void) {
 		exit(1);
 	} else if (recv == 0) {
 
-		printf("recvmsg len 0, Connection closed");
+		printf("recvmsg len 0, Connection closed\n");
 		exit(1);
 	}
 
@@ -226,13 +303,13 @@ int		main(void) {
 	struct cmsghdr *cmsg;
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
 
-				if (cmsg->cmsg_level == SOL_SOCKET &&
-					cmsg->cmsg_type == SO_TRAFFIC_CLASS &&
-					cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
-					/* Copy to avoid alignment problems: */
-					memcpy(&tc, CMSG_DATA(cmsg), sizeof(tc));
-				}
+		if (cmsg->cmsg_level == SOL_SOCKET &&
+			cmsg->cmsg_type == SO_TRAFFIC_CLASS &&
+			cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
+			/* Copy to avoid alignment problems: */
+			memcpy(&tc, CMSG_DATA(cmsg), sizeof(tc));
 		}
+	}
 	pr_pack((char *)msg.msg_iov->iov_base, recv, &from, tc);
 
 	return (0);
