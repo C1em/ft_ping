@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/28 18:17:35 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/28 18:21:15 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,47 +33,6 @@
 #else
 	#define IS_LINUX (0)
 #endif
-
-// typedef struct ipheader {
-
-// #if __BYTE_ORDER == __LITTLE_ENDIAN
-// 	unsigned int ihl:4;			// Internet Header Length: value between 5 and 15 depending of Options (always 5 for icmp)
-// 	unsigned int version:4;		// Version: 4 for ipv4
-// #elif __BYTE_ORDER == __BIG_ENDIAN
-// 	unsigned int version:4;
-// 	unsigned int ihl:4;
-// #endif
-
-// 	unsigned char tos;			// Type of Service: packet priority (0 for ping)
-// 	unsigned short int len;		// Total Length: total size of packet
-// 	unsigned short int id;		// Identifiaction: for defragmentation (don't use)
-// 	unsigned short int off;		// Flags + Offset: for defragmentation (don't use)
-// 	unsigned char ttl;			// Time to Live
-// 	unsigned char p;			// Protocol: (ICMP)
-// 	unsigned short int sum;		// Header checksum
-// 	unsigned int src;			// Source address
-// 	unsigned int dst;			// Destination address
-// } __attribute__((packed)) iphdr;
-
-// typedef struct icmpheader {
-
-// 	u_char icmp_type;				// type of message
-// 	u_char icmp_code;				// type sub code
-// 	u_short icmp_cksum;				// ones complement checksum of struct
-// } __attribute__((packed)) icmphdr;
-
-// unsigned short in_cksum(void *ptr, unsigned int len) {
-
-// 	unsigned short *u_int16_ptr = (unsigned short *)ptr;
-// 	unsigned short checksum = 0;
-
-// 	u_int16_ptr[1] = 0; // set the checksum to 0 in the packet
-
-// 	for (int i = 0; i < len; i++)
-// 		checksum += u_int16_ptr[i];
-
-// 	return (~checksum);
-// }
 
 unsigned short in_cksum(unsigned short *ptr, unsigned int len) {
 
@@ -104,7 +63,7 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 	ip_hdr->ip_ttl = 64;
 	ip_hdr->ip_p = IPPROTO_ICMP;
 	ip_hdr->ip_id = getpid();
-	ip_hdr->ip_id = HTONS(ip_hdr->ip_id);
+	ip_hdr->ip_id = htons(ip_hdr->ip_id);
 
 	ip_hdr->ip_off = 0;
 	ip_hdr->ip_src.s_addr = INADDR_ANY;
@@ -116,7 +75,7 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 	}
 
 	ip_hdr->ip_len = sizeof(struct ip) + ICMP_MINLEN;
-	ip_hdr->ip_len = HTONS(ip_hdr->ip_len);
+	ip_hdr->ip_len = htons(ip_hdr->ip_len);
 
 	ip_hdr->ip_sum = in_cksum(ip_hdr, 20);
 	return (ip_hdr);
@@ -128,8 +87,8 @@ void	print_ip_hdr(struct ip* ip_hdr) {
 	printf("ip_hl: %u\n", ip_hdr->ip_hl);
 	printf("ip_v: %u\n", ip_hdr->ip_v);
 	printf("ip_tos: %u\n", ip_hdr->ip_tos);
-	printf("ip_len: %u\n", NTOHS(ip_hdr->ip_len));
-	printf("ip_id: %u\n", NTOHS(ip_hdr->ip_id));
+	printf("ip_len: %u\n", ntohs(ip_hdr->ip_len));
+	printf("ip_id: %u\n", ntohs(ip_hdr->ip_id));
 	printf("ip_off: %u\n", ip_hdr->ip_off);
 	printf("ip_ttl: %u\n", ip_hdr->ip_ttl);
 	printf("ip_p: %u\n", ip_hdr->ip_p);
@@ -150,7 +109,7 @@ void	print_icmp_hdr(struct ip* ip_hdr) {
 	printf("_____________________\n");
 	printf("icmp_type: %u\n", icmp_hdr->icmp_type);
 	printf("icmp_type: %u\n", icmp_hdr->icmp_code);
-	printf("icmp_hun.ih_idseq.icd_id: %u\n", NTOHS(icmp_hdr->icmp_hun.ih_idseq.icd_id));
+	printf("icmp_hun.ih_idseq.icd_id: %u\n", ntohs(icmp_hdr->icmp_hun.ih_idseq.icd_id));
 	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
 	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
 	printf("_____________________\n");
@@ -164,7 +123,7 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	icmp_hdr->icmp_cksum = 0;
 
 	icmp_hdr->icmp_hun.ih_idseq.icd_id = (unsigned short)getpid();
-	icmp_hdr->icmp_hun.ih_idseq.icd_id = HTONS(icmp_hdr->icmp_hun.ih_idseq.icd_id);
+	icmp_hdr->icmp_hun.ih_idseq.icd_id = htons(icmp_hdr->icmp_hun.ih_idseq.icd_id);
 	// TODO: increment this
 	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
 
@@ -231,7 +190,7 @@ int		main(void) {
 	whereto.sin_family = AF_INET;
 	inet_pton(AF_INET, DEST_IP, &(whereto.sin_addr));
 	// whereto.sin_port = 80;
-	// whereto.sin_port = HTONS(whereto.sin_port);
+	// whereto.sin_port = htons(whereto.sin_port);
 	memset(whereto.sin_zero, 0, sizeof(whereto.sin_zero));
 	// struct addrinfo hints, *ret;
 
