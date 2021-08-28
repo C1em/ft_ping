@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/27 18:12:47 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/28 18:17:35 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -232,7 +232,6 @@ int		main(void) {
 	inet_pton(AF_INET, DEST_IP, &(whereto.sin_addr));
 	// whereto.sin_port = 80;
 	// whereto.sin_port = HTONS(whereto.sin_port);
-	whereto.sin_len = sizeof(whereto);
 	memset(whereto.sin_zero, 0, sizeof(whereto.sin_zero));
 	// struct addrinfo hints, *ret;
 
