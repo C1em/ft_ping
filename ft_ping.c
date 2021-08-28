@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/28 21:53:50 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/28 22:02:07 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,7 +26,7 @@
 
 #include <assert.h>
 #define SO_TRAFFIC_CLASS	0x1086
-#define DEST_IP				"8.8.8.8"
+#define DEST_IP				"127.0.0.1"
 
 #ifdef __linux__
 	#define IS_LINUX (1)
@@ -125,8 +125,7 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	// TODO: increment this
 	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
 
-	// done by kernel
-	// icmp_hdr->icmp_cksum = htons(in_cksum((unsigned short*)icmp_hdr, 8));
+	icmp_hdr->icmp_cksum = htons(in_cksum((unsigned short*)icmp_hdr, 8));
 	return (ip_hdr);
 }
 
@@ -152,7 +151,7 @@ static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
 	icp = (struct icmp *)(buf + hlen);
 	if (icp->icmp_type == ICMP_ECHOREPLY) {
 
-		if (icp->icmp_id != (unsigned short)getpid()) {
+		if (ntohs(icp->icmp_id) != (unsigned short)getpid()) {
 
 			printf("not our packet\n");
 			exit(1);
