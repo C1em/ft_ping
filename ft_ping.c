@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/28 18:21:15 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/28 21:53:50 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,8 +62,7 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 	ip_hdr->ip_tos = 0;
 	ip_hdr->ip_ttl = 64;
 	ip_hdr->ip_p = IPPROTO_ICMP;
-	ip_hdr->ip_id = getpid();
-	ip_hdr->ip_id = htons(ip_hdr->ip_id);
+	ip_hdr->ip_id = htons((unsigned short)getpid());
 
 	ip_hdr->ip_off = 0;
 	ip_hdr->ip_src.s_addr = INADDR_ANY;
@@ -74,10 +73,10 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 		exit(1);
 	}
 
-	ip_hdr->ip_len = sizeof(struct ip) + ICMP_MINLEN;
-	ip_hdr->ip_len = htons(ip_hdr->ip_len);
+	ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN);
 
-	ip_hdr->ip_sum = in_cksum(ip_hdr, 20);
+	// done by kernel
+	// ip_hdr->ip_sum = htons(in_cksum((unsigned short*)ip_hdr, 20));
 	return (ip_hdr);
 }
 
@@ -87,12 +86,12 @@ void	print_ip_hdr(struct ip* ip_hdr) {
 	printf("ip_hl: %u\n", ip_hdr->ip_hl);
 	printf("ip_v: %u\n", ip_hdr->ip_v);
 	printf("ip_tos: %u\n", ip_hdr->ip_tos);
-	printf("ip_len: %u\n", ntohs(ip_hdr->ip_len));
+	printf("ip_len: %u\n", ip_hdr->ip_len);
 	printf("ip_id: %u\n", ntohs(ip_hdr->ip_id));
 	printf("ip_off: %u\n", ip_hdr->ip_off);
 	printf("ip_ttl: %u\n", ip_hdr->ip_ttl);
 	printf("ip_p: %u\n", ip_hdr->ip_p);
-	printf("ip_sum: %u\n", ip_hdr->ip_sum);
+	printf("ip_sum: %u\n", ntohs(ip_hdr->ip_sum));
 
 	char addr[16];
 	inet_ntop(AF_INET, &ip_hdr->ip_src, addr, sizeof(addr));
@@ -111,7 +110,7 @@ void	print_icmp_hdr(struct ip* ip_hdr) {
 	printf("icmp_type: %u\n", icmp_hdr->icmp_code);
 	printf("icmp_hun.ih_idseq.icd_id: %u\n", ntohs(icmp_hdr->icmp_hun.ih_idseq.icd_id));
 	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
-	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
+	printf("icmp_cksum: %u\n", ntohs(icmp_hdr->icmp_cksum));
 	printf("_____________________\n");
 }
 
@@ -122,12 +121,12 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	icmp_hdr->icmp_code = 0;
 	icmp_hdr->icmp_cksum = 0;
 
-	icmp_hdr->icmp_hun.ih_idseq.icd_id = (unsigned short)getpid();
-	icmp_hdr->icmp_hun.ih_idseq.icd_id = htons(icmp_hdr->icmp_hun.ih_idseq.icd_id);
+	icmp_hdr->icmp_hun.ih_idseq.icd_id = htons((unsigned short)getpid());
 	// TODO: increment this
 	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
 
-	icmp_hdr->icmp_cksum = in_cksum(icmp_hdr, 8);
+	// done by kernel
+	// icmp_hdr->icmp_cksum = htons(in_cksum((unsigned short*)icmp_hdr, 8));
 	return (ip_hdr);
 }
 
@@ -189,20 +188,7 @@ int		main(void) {
 
 	whereto.sin_family = AF_INET;
 	inet_pton(AF_INET, DEST_IP, &(whereto.sin_addr));
-	// whereto.sin_port = 80;
-	// whereto.sin_port = htons(whereto.sin_port);
 	memset(whereto.sin_zero, 0, sizeof(whereto.sin_zero));
-	// struct addrinfo hints, *ret;
-
-	// //define what we want from getaddrinfo
-	// memset(&hints, 0, sizeof(hints));
-	// hints.ai_family = AF_INET; //IPv4
-	// hints.ai_socktype = SOCK_DGRAM; //UDP packets
-	// if (getaddrinfo(DEST_IP, "80", &hints, &ret) != 0) {
-
-	// 	printf("nani\n");
-	// 	exit(1);
-	// }
 
 	pkt = build_iphdr(pkt);
 	pkt = build_icmphdr(pkt);
