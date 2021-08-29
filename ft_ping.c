@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/29 15:55:19 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/29 18:22:00 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -73,7 +73,9 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 		exit(1);
 	}
 
-	ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN);
+	// on Linux ip_len is filled by the kernel
+	if (!IS_LINUX)
+		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN);
 
 	// done by kernel
 	// ip_hdr->ip_sum = htons(in_cksum((unsigned short*)ip_hdr, 20));
@@ -86,7 +88,10 @@ void	print_ip_hdr(struct ip* ip_hdr) {
 	printf("ip_hl: %u\n", ip_hdr->ip_hl);
 	printf("ip_v: %u\n", ip_hdr->ip_v);
 	printf("ip_tos: %u\n", ip_hdr->ip_tos);
-	printf("ip_len: %u\n", ip_hdr->ip_len);
+	if (IS_LINUX)
+		printf("ip_len: %u\n", ntohs(ip_hdr->ip_len));
+	else // on FreeBSD and Macos ip_len is in host byte order
+		printf("ip_len: %u\n", ip_hdr->ip_len);
 	printf("ip_id: %u\n", ntohs(ip_hdr->ip_id));
 	printf("ip_off: %u\n", ip_hdr->ip_off);
 	printf("ip_ttl: %u\n", ip_hdr->ip_ttl);
@@ -129,7 +134,7 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	return (ip_hdr);
 }
 
-static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
+static void pr_pack(char *buf, int cc, struct sockaddr_in *from) {
 
 	u_char *cp;
 	struct icmp *icp;
@@ -234,18 +239,10 @@ int		main(void) {
 		exit(1);
 	}
 
-	int tc = -1;
-	struct cmsghdr *cmsg;
-	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+	if (!IS_LINUX)
+		((struct ip*)msg.msg_iov->iov_base)->ip_len += ((struct ip*)msg.msg_iov->iov_base)->ip_hl << 2;
 
-		if (cmsg->cmsg_level == SOL_SOCKET &&
-			cmsg->cmsg_type == SO_TRAFFIC_CLASS &&
-			cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
-			/* Copy to avoid alignment problems: */
-			memcpy(&tc, CMSG_DATA(cmsg), sizeof(tc));
-		}
-	}
-	pr_pack((char *)msg.msg_iov->iov_base, recv, &from, tc);
+	pr_pack((char *)msg.msg_iov->iov_base, recv, &from);
 
 	return (0);
 }
