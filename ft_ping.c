@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/28 22:02:07 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/29 15:55:19 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,7 +26,7 @@
 
 #include <assert.h>
 #define SO_TRAFFIC_CLASS	0x1086
-#define DEST_IP				"127.0.0.1"
+#define DEST_IP				"8.8.8.8"
 
 #ifdef __linux__
 	#define IS_LINUX (1)
@@ -110,7 +110,7 @@ void	print_icmp_hdr(struct ip* ip_hdr) {
 	printf("icmp_type: %u\n", icmp_hdr->icmp_code);
 	printf("icmp_hun.ih_idseq.icd_id: %u\n", ntohs(icmp_hdr->icmp_hun.ih_idseq.icd_id));
 	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
-	printf("icmp_cksum: %u\n", ntohs(icmp_hdr->icmp_cksum));
+	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
 	printf("_____________________\n");
 }
 
@@ -125,7 +125,7 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	// TODO: increment this
 	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
 
-	icmp_hdr->icmp_cksum = htons(in_cksum((unsigned short*)icmp_hdr, 8));
+	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, 8);
 	return (ip_hdr);
 }
 
@@ -157,16 +157,8 @@ static void pr_pack(char *buf, int cc, struct sockaddr_in *from, int tc) {
 			exit(1);
 		}
 
-		printf("icmp_type: %u\n", icp->icmp_type);
-		printf("icmp_code: %u\n", icp->icmp_code);
-		printf("icmp_dun.id_data: %p\n", (void*)&icp->icmp_dun.id_data);
-		printf("&buf[hlen + ICMP_MINLEN]: %p\n", (void*)&buf[hlen + ICMP_MINLEN]);
-		printf("&buf[tot_len]: %p\n", (void*)&buf[cc]);
-		printf("data size: %zu\n", (size_t)&buf[cc] - (size_t)&buf[hlen + ICMP_MINLEN]);
-		printf("data size: %zu\n", (size_t)&buf[cc] - (size_t)&buf[2 * hlen + ICMP_MINLEN]);
-
-		print_ip_hdr((struct ip*)&buf[hlen + ICMP_MINLEN]);
-
+		print_ip_hdr(ip);
+		print_icmp_hdr(ip);
 	} else {
 
 		printf("not a echoreply\n");
@@ -196,7 +188,7 @@ int		main(void) {
 	if (uid != 0 && !IS_LINUX)
 		s = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
 	else
-		s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+		s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
 	printf("socket: %d\n", s);
 	if (s < 0) {
