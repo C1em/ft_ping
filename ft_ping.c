@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/29 18:22:00 by coremart         ###   ########.fr       */
+/*   Updated: 2021/08/31 13:05:33 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,15 +24,7 @@
 #include <stdio.h>
 #include <netdb.h> //  getaddrinfo()
 
-#include <assert.h>
-#define SO_TRAFFIC_CLASS	0x1086
-#define DEST_IP				"8.8.8.8"
-
-#ifdef __linux__
-	#define IS_LINUX (1)
-#else
-	#define IS_LINUX (0)
-#endif
+#include "ft_ping.h"
 
 unsigned short in_cksum(unsigned short *ptr, unsigned int len) {
 
@@ -134,13 +126,16 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	return (ip_hdr);
 }
 
-static void pr_pack(char *buf, int cc, struct sockaddr_in *from) {
+void check_packet(char *buf, int cc) {
 
 	u_char *cp;
 	struct icmp *icp;
 	struct ip *ip;
 	int hlen;
 	int recv_len;
+
+	if (!IS_LINUX)
+		((struct ip*)buf)->ip_len += ((struct ip*)buf)->ip_hl << 2;
 
 	/* Check the IP header */
 	ip = (struct ip *)buf;
@@ -171,23 +166,9 @@ static void pr_pack(char *buf, int cc, struct sockaddr_in *from) {
 	}
 }
 
-int		main(void) {
+int		create_socket(void) {
 
-	unsigned char recv_packet[IP_MAXPACKET] __attribute__((aligned(4)));
-	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN);
-	struct sockaddr_in whereto = (struct sockaddr_in){0};
-	struct sockaddr_in from = (struct sockaddr_in){0};
-	struct msghdr msg;
-	struct iovec iov[1];
-	int s; // socket
-
-
-	whereto.sin_family = AF_INET;
-	inet_pton(AF_INET, DEST_IP, &(whereto.sin_addr));
-	memset(whereto.sin_zero, 0, sizeof(whereto.sin_zero));
-
-	pkt = build_iphdr(pkt);
-	pkt = build_icmphdr(pkt);
+	int s;
 
 	uid_t uid = getuid();
 	if (uid != 0 && !IS_LINUX)
@@ -202,18 +183,64 @@ int		main(void) {
 		exit(1);
 	}
 
-
+	int hold = 1;
+	// tell the socket to not add the ip header because we provide our own
+	setsockopt(s, IPPROTO_IP, IP_HDRINCL, (char *)&hold, sizeof(hold));
 
 	// int hold = IP_MAXPACKET + 128;
 	// (void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
 	// if (getuid() == 0)
 	// 	(void)setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
-	int hold = 1;
-	setsockopt(s, IPPROTO_IP, IP_HDRINCL, (char *)&hold, sizeof(hold));
+
+	return (s);
+}
+
+struct sockaddr_in	build_dest_addr(char* str_dest) {
+
+	struct sockaddr_in dest = (struct sockaddr_in){0};
+
+	dest.sin_family = AF_INET;
+	inet_pton(AF_INET, str_dest, &(dest.sin_addr));
+	memset(dest.sin_zero, 0, sizeof(dest.sin_zero));
+
+	return (dest);
+}
+
+struct ip	*create_ping_packet(void) {
+
+	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN);
+
+	pkt = build_iphdr(pkt);
+	pkt = build_icmphdr(pkt);
 
 	print_ip_hdr(pkt);
 	print_icmp_hdr(pkt);
-	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN, 0, (struct sockaddr*)&whereto, sizeof(struct sockaddr_in));
+
+	return (pkt);
+}
+
+struct msghdr	*create_msg_receiver(void) {
+
+	struct msghdr *msg = (struct msghdr*)calloc(1, sizeof(struct msghdr));
+	struct iovec *iov = (struct iovec*)calloc(1, sizeof(struct iovec));
+	unsigned char *recv_packet = (unsigned char*)calloc(1, IP_MAXPACKET);
+
+	iov->iov_base = recv_packet;
+	iov->iov_len = IP_MAXPACKET;
+	msg->msg_iov = iov;
+	msg->msg_iovlen = 1;
+
+	return (msg);
+}
+
+int		main(void) {
+
+	int s = create_socket();
+
+	struct ip *pkt = create_ping_packet();
+	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
+
+	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
 	printf("try to send: %zu\nsent: %zd\n", sizeof(struct ip) + ICMP_MINLEN, sent);
 	if (sent < 0) {
 
@@ -221,13 +248,9 @@ int		main(void) {
 		exit(1);
 	}
 
-	iov[0].iov_base = recv_packet;
-	iov[0].iov_len = sizeof(recv_packet);
-	msg.msg_iov = iov;
-	msg.msg_iovlen = 1;
-	msg.msg_name = (caddr_t)&from;
-	msg.msg_namelen = sizeof(from);
-	ssize_t recv = recvmsg(s, &msg, 0);
+	struct msghdr* msg = create_msg_receiver();
+
+	ssize_t recv = recvmsg(s, msg, 0);
 	printf("recv: %zd\n", recv);
 	if (recv < 0) {
 
@@ -239,10 +262,7 @@ int		main(void) {
 		exit(1);
 	}
 
-	if (!IS_LINUX)
-		((struct ip*)msg.msg_iov->iov_base)->ip_len += ((struct ip*)msg.msg_iov->iov_base)->ip_hl << 2;
-
-	pr_pack((char *)msg.msg_iov->iov_base, recv, &from);
+	check_packet((char *)msg->msg_iov->iov_base, recv);
 
 	return (0);
 }
