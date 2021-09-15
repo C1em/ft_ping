@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/08/31 13:05:33 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/15 15:19:20 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,7 @@
 #include <unistd.h> // getpid()
 #include <stdio.h>
 #include <netdb.h> //  getaddrinfo()
+#include <sys/time.h>
 
 #include "ft_ping.h"
 
@@ -67,7 +68,7 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 
 	// on Linux ip_len is filled by the kernel
 	if (!IS_LINUX)
-		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN);
+		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN + TV_LEN);
 
 	// done by kernel
 	// ip_hdr->ip_sum = htons(in_cksum((unsigned short*)ip_hdr, 20));
@@ -108,12 +109,19 @@ void	print_icmp_hdr(struct ip* ip_hdr) {
 	printf("icmp_hun.ih_idseq.icd_id: %u\n", ntohs(icmp_hdr->icmp_hun.ih_idseq.icd_id));
 	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
 	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
+	struct tv32 tv32;
+	memcpy((void*)&tv32, &((char*)icmp_hdr)[ICMP_MINLEN], TV_LEN);
+	printf("icmp tv32_sec: %u\n", ntohl(tv32.tv32_sec));
+	printf("icmp tv32_usec: %u\n", ntohl(tv32.tv32_usec));
 	printf("_____________________\n");
 }
 
 struct ip	*build_icmphdr(struct ip* ip_hdr) {
 
 	struct icmp	*icmp_hdr = (struct icmp*)(ip_hdr + 1);
+	struct timeval now;
+	struct tv32 tv32;
+
 	icmp_hdr->icmp_type = ICMP_ECHO;
 	icmp_hdr->icmp_code = 0;
 	icmp_hdr->icmp_cksum = 0;
@@ -122,7 +130,13 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	// TODO: increment this
 	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
 
-	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, 8);
+	(void)gettimeofday(&now, NULL);
+
+	tv32.tv32_sec = htonl(now.tv_sec);
+	tv32.tv32_usec = htonl(now.tv_usec);
+	memcpy((void*)&((char*)icmp_hdr)[ICMP_MINLEN], (void*)&tv32, TV_LEN);
+
+	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + TV_LEN);
 	return (ip_hdr);
 }
 
@@ -208,7 +222,7 @@ struct sockaddr_in	build_dest_addr(char* str_dest) {
 
 struct ip	*create_ping_packet(void) {
 
-	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN);
+	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN + TV_LEN);
 
 	pkt = build_iphdr(pkt);
 	pkt = build_icmphdr(pkt);
@@ -240,8 +254,8 @@ int		main(void) {
 	struct ip *pkt = create_ping_packet();
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
 
-	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
-	printf("try to send: %zu\nsent: %zd\n", sizeof(struct ip) + ICMP_MINLEN, sent);
+	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	printf("try to send: %zu\nsent: %zd\n", sizeof(struct ip) + ICMP_MINLEN + TV_LEN, sent);
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
