@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/16 14:02:48 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/16 14:03:41 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,7 +29,7 @@
 
 void	print_mem(void* ptr, unsigned int len) {
 
-	for (int i = 0; i < len; len++) {
+	for (int i = 0; i < len; i++) {
 
 		printf("%x", ((char*)ptr)[i]);
 	}
