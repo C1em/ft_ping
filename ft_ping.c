@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/16 13:44:34 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/16 14:02:48 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,15 @@
 #include <sys/time.h>
 
 #include "ft_ping.h"
+
+void	print_mem(void* ptr, unsigned int len) {
+
+	for (int i = 0; i < len; len++) {
+
+		printf("%x", ((char*)ptr)[i]);
+	}
+	printf("\n");
+}
 
 unsigned short in_cksum(unsigned short *ptr, unsigned int len) {
 
@@ -186,6 +195,7 @@ void check_packet(char *buf, int cc) {
 	} else {
 
 		printf("not a echoreply type: %u\n", icp->icmp_type);
+		print_mem((void*)icp, 10);
 		exit(1);
 	}
 }
