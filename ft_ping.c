@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/15 15:19:20 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/15 15:54:28 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -109,10 +109,20 @@ void	print_icmp_hdr(struct ip* ip_hdr) {
 	printf("icmp_hun.ih_idseq.icd_id: %u\n", ntohs(icmp_hdr->icmp_hun.ih_idseq.icd_id));
 	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
 	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
-	struct tv32 tv32;
-	memcpy((void*)&tv32, &((char*)icmp_hdr)[ICMP_MINLEN], TV_LEN);
-	printf("icmp tv32_sec: %u\n", ntohl(tv32.tv32_sec));
-	printf("icmp tv32_usec: %u\n", ntohl(tv32.tv32_usec));
+
+	struct tv32 sent_tv32;
+	struct timeval now;
+	(void)gettimeofday(&now, NULL);
+	struct tv32 cur_tv32;
+	memcpy((void*)&sent_tv32, &((char*)icmp_hdr)[ICMP_MINLEN], TV_LEN);
+
+	cur_tv32.tv32_sec = (u_int32_t)now.tv_sec - ntohl(sent_tv32.tv32_sec);
+	cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
+	double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
+
+	printf("icmp tv32_sec: %u\n", ntohl(sent_tv32.tv32_sec));
+	printf("icmp tv32_usec: %u\n", ntohl(sent_tv32.tv32_usec));
+	printf("travel time: %.3f ms\n", triptime);
 	printf("_____________________\n");
 }
 
