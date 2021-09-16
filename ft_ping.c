@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/15 15:54:28 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/16 13:44:34 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -185,7 +185,7 @@ void check_packet(char *buf, int cc) {
 		print_icmp_hdr(ip);
 	} else {
 
-		printf("not a echoreply\n");
+		printf("not a echoreply type: %u\n", icp->icmp_type);
 		exit(1);
 	}
 }
