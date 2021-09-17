@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/16 14:03:41 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 15:35:20 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,11 +27,13 @@
 
 #include "ft_ping.h"
 
+struct ping g_ping;
+
 void	print_mem(void* ptr, unsigned int len) {
 
 	for (int i = 0; i < len; i++) {
 
-		printf("%x", ((char*)ptr)[i]);
+		printf("0x%x ", ((unsigned char*)ptr)[i]);
 	}
 	printf("\n");
 }
@@ -146,8 +148,8 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	icmp_hdr->icmp_cksum = 0;
 
 	icmp_hdr->icmp_hun.ih_idseq.icd_id = htons((unsigned short)getpid());
-	// TODO: increment this
-	icmp_hdr->icmp_hun.ih_idseq.icd_seq = 0;
+	icmp_hdr->icmp_hun.ih_idseq.icd_seq = g_ping.npackets;
+	g_ping.npackets++;
 
 	(void)gettimeofday(&now, NULL);
 
@@ -170,7 +172,7 @@ void check_packet(char *buf, int cc) {
 	if (!IS_LINUX)
 		((struct ip*)buf)->ip_len += ((struct ip*)buf)->ip_hl << 2;
 
-	/* Check the IP header */
+	// Check the IP header
 	ip = (struct ip *)buf;
 	hlen = ip->ip_hl << 2;
 	recv_len = cc;
@@ -180,7 +182,7 @@ void check_packet(char *buf, int cc) {
 		exit(1);
 	}
 
-	/* Now the ICMP part */
+	// Now the ICMP part
 	icp = (struct icmp *)(buf + hlen);
 	if (icp->icmp_type == ICMP_ECHOREPLY) {
 
@@ -189,13 +191,29 @@ void check_packet(char *buf, int cc) {
 			printf("not our packet\n");
 			exit(1);
 		}
+		char ip_src[16];
+		inet_ntop(AF_INET, &ip->ip_src, ip_src, sizeof(ip_src));
 
-		print_ip_hdr(ip);
-		print_icmp_hdr(ip);
+		struct tv32 sent_tv32;
+		struct timeval now;
+		(void)gettimeofday(&now, NULL);
+		struct tv32 cur_tv32;
+		memcpy((void*)&sent_tv32, &((char*)icp)[ICMP_MINLEN], TV_LEN);
+
+		cur_tv32.tv32_sec = (u_int32_t)now.tv_sec - ntohl(sent_tv32.tv32_sec);
+		cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
+		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
+
+		printf("%u bytes from %s: icmp_seq=%u ttl=%u time=%f ms\n",
+		ip->ip_len,
+		ip_src,
+		icp->icmp_hun.ih_idseq.icd_seq,
+		ip->ip_ttl,
+		triptime);
+
 	} else {
 
 		printf("not a echoreply type: %u\n", icp->icmp_type);
-		print_mem((void*)icp, 10);
 		exit(1);
 	}
 }
@@ -210,7 +228,6 @@ int		create_socket(void) {
 	else
 		s = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
-	printf("socket: %d\n", s);
 	if (s < 0) {
 
 		printf("%s\n", strerror(errno));
@@ -247,8 +264,8 @@ struct ip	*create_ping_packet(void) {
 	pkt = build_iphdr(pkt);
 	pkt = build_icmphdr(pkt);
 
-	print_ip_hdr(pkt);
-	print_icmp_hdr(pkt);
+	// print_ip_hdr(pkt);
+	// print_icmp_hdr(pkt);
 
 	return (pkt);
 }
@@ -267,36 +284,74 @@ struct msghdr	*create_msg_receiver(void) {
 	return (msg);
 }
 
-int		main(void) {
+struct ip	*update_packet(struct ip* pkt) {
+
+	struct icmp	*icmp_hdr = (struct icmp*)(pkt + 1);
+	struct timeval now;
+	struct tv32 tv32;
+
+	icmp_hdr->icmp_hun.ih_idseq.icd_seq = g_ping.npackets;
+	g_ping.npackets++;
+
+	(void)gettimeofday(&now, NULL);
+
+	tv32.tv32_sec = htonl(now.tv_sec);
+	tv32.tv32_usec = htonl(now.tv_usec);
+	memcpy((void*)&((char*)icmp_hdr)[ICMP_MINLEN], (void*)&tv32, TV_LEN);
+
+	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + TV_LEN);
+	return (pkt);
+}
+
+void	ping_loop(void) {
 
 	int s = create_socket();
-
-	struct ip *pkt = create_ping_packet();
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
+	struct ip *pkt = create_ping_packet();
 
+	// First ping
 	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
-	printf("try to send: %zu\nsent: %zd\n", sizeof(struct ip) + ICMP_MINLEN + TV_LEN, sent);
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
-
+	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
 	struct msghdr* msg = create_msg_receiver();
+	ssize_t recv;
 
-	ssize_t recv = recvmsg(s, msg, 0);
-	printf("recv: %zd\n", recv);
-	if (recv < 0) {
+	while(1) {
 
-		printf("%s\n", strerror(errno));
-		exit(1);
-	} else if (recv == 0) {
+		printf("here1\n");
+		recv = recvmsg(s, msg, 0);
+		if (recv < 0) {
 
-		printf("recvmsg len 0, Connection closed\n");
-		exit(1);
+			printf("%s\n", strerror(errno));
+			exit(1);
+		} else if (recv == 0) {
+
+			printf("recvmsg len 0, Connection closed\n");
+			exit(1);
+		}
+
+		printf("here2\n");
+		check_packet((char *)msg->msg_iov->iov_base, recv);
+
+		pkt = update_packet(pkt);
+		sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+		if (sent < 0) {
+
+			printf("errno %d: %s\n", errno, strerror(errno));
+			exit(1);
+		}
+		printf("here3\n");
 	}
+}
 
-	check_packet((char *)msg->msg_iov->iov_base, recv);
+int		main(void) {
+
+
+	ping_loop();
 
 	return (0);
 }
