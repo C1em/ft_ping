@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 15:35:20 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 15:41:31 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -212,6 +212,10 @@ void check_packet(char *buf, int cc) {
 		triptime);
 
 	} else {
+
+		// drop ICMP_ECHO
+		if (icp->icmp_type == ICMP_ECHO)
+			return ;
 
 		printf("not a echoreply type: %u\n", icp->icmp_type);
 		exit(1);
