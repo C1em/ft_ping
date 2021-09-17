@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 22:16:13 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 22:27:48 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -216,8 +216,11 @@ void check_packet(char *buf, int cc) {
 	} else {
 
 		// drop ICMP_ECHO
-		if (icp->icmp_type == ICMP_ECHO)
+		if (icp->icmp_type == ICMP_ECHO) {
+
+			printf("recv ICMP_ECHO\n");
 			return ;
+		}
 
 		printf("not a echoreply type: %u\n", icp->icmp_type);
 		exit(1);
@@ -305,6 +308,7 @@ struct ip	*update_packet(struct ip* pkt) {
 	tv32.tv32_usec = htonl(now.tv_usec);
 	memcpy((void*)&((char*)icmp_hdr)[ICMP_MINLEN], (void*)&tv32, TV_LEN);
 
+	icmp_hdr->icmp_cksum = 0;
 	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + TV_LEN);
 	return (pkt);
 }
@@ -380,7 +384,6 @@ int		main(void) {
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
-	g_ping.npackets++;
 	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
 	struct msghdr* msg = create_msg_receiver();
 
@@ -403,7 +406,6 @@ int		main(void) {
 	while (1) {
 
 		recv = recvmsg(g_ping.s, msg, 0);
-		write(1, "ohohoh\n", 8);
 		if (recv < 0) {
 
 			printf("%s\n", strerror(errno));
