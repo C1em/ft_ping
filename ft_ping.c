@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 22:05:24 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 22:16:13 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -364,20 +364,7 @@ void	pinger(int signum) {
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
-
-	struct msghdr* msg = create_msg_receiver();
-	ssize_t recv = recvmsg(g_ping.s, msg, 0);
-	if (recv < 0) {
-
-		printf("%s\n", strerror(errno));
-		exit(1);
-	} else if (recv == 0) {
-
-		printf("recvmsg len 0, Connection closed\n");
-		exit(1);
-	}
-
-	check_packet((char *)msg->msg_iov->iov_base, recv);
+	alarm(1);
 }
 
 int		main(void) {
@@ -412,6 +399,22 @@ int		main(void) {
 
 	signal(SIGALRM, pinger);
 	alarm(1);
-	while (1);
+
+	while (1) {
+
+		recv = recvmsg(g_ping.s, msg, 0);
+		write(1, "ohohoh\n", 8);
+		if (recv < 0) {
+
+			printf("%s\n", strerror(errno));
+			exit(1);
+		} else if (recv == 0) {
+
+			printf("recvmsg len 0, Connection closed\n");
+			exit(1);
+		}
+
+		check_packet((char *)msg->msg_iov->iov_base, recv);
+	}
 	return (0);
 }
