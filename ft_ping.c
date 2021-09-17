@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 20:58:02 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 22:05:24 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -204,12 +204,14 @@ void check_packet(char *buf, int cc) {
 		cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
 		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
 
-		printf("%u bytes from %s: icmp_seq=%u ttl=%u time=%f ms\n",
-		ip->ip_len,
-		ip_src,
-		icp->icmp_hun.ih_idseq.icd_seq,
-		ip->ip_ttl,
-		triptime);
+		printf(
+			"%u bytes from %s: icmp_seq=%u ttl=%u time=%f ms\n",
+			(IS_LINUX) ? ntohs(ip->ip_len) : ip->ip_len,
+			ip_src,
+			icp->icmp_hun.ih_idseq.icd_seq,
+			ip->ip_ttl,
+			triptime
+		);
 
 	} else {
 
@@ -354,7 +356,6 @@ struct ip	*update_packet(struct ip* pkt) {
 
 void	pinger(int signum) {
 
-	write(1, "yo\n", 3);
 	g_ping.pkt = update_packet(g_ping.pkt);
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
@@ -365,9 +366,7 @@ void	pinger(int signum) {
 	}
 
 	struct msghdr* msg = create_msg_receiver();
-	write(1, "yo\n", 3);
 	ssize_t recv = recvmsg(g_ping.s, msg, 0);
-	write(1, "yo\n", 3);
 	if (recv < 0) {
 
 		printf("%s\n", strerror(errno));
