@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 15:41:31 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 20:49:35 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -307,55 +307,112 @@ struct ip	*update_packet(struct ip* pkt) {
 	return (pkt);
 }
 
-void	ping_loop(void) {
+// void	ping_loop(void) {
 
-	int s = create_socket();
+// 	int s = create_socket();
+// 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
+// 	struct ip *pkt = create_ping_packet();
+
+// 	// First ping
+// 	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+// 	if (sent < 0) {
+
+// 		printf("errno %d: %s\n", errno, strerror(errno));
+// 		exit(1);
+// 	}
+// 	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
+// 	struct msghdr* msg = create_msg_receiver();
+// 	ssize_t recv;
+
+// 	while(1) {
+
+// 		printf("here1\n");
+// 		recv = recvmsg(s, msg, 0);
+// 		if (recv < 0) {
+
+// 			printf("%s\n", strerror(errno));
+// 			exit(1);
+// 		} else if (recv == 0) {
+
+// 			printf("recvmsg len 0, Connection closed\n");
+// 			exit(1);
+// 		}
+
+// 		printf("here2\n");
+// 		check_packet((char *)msg->msg_iov->iov_base, recv);
+
+// 		pkt = update_packet(pkt);
+// 		sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+// 		if (sent < 0) {
+
+// 			printf("errno %d: %s\n", errno, strerror(errno));
+// 			exit(1);
+// 		}
+// 		printf("here3\n");
+// 	}
+// }
+
+void	pinger(int signum) {
+
+	write(1, "yo\n", 3);
+	g_ping.pkt = update_packet(g_ping.pkt);
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
-	struct ip *pkt = create_ping_packet();
-
-	// First ping
-	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
-	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
+
 	struct msghdr* msg = create_msg_receiver();
-	ssize_t recv;
+	write(1, "yo\n", 3);
+	ssize_t recv = recvmsg(g_ping.s, msg, 0);
+	write(1, "yo\n", 3);
+	if (recv < 0) {
 
-	while(1) {
+		printf("%s\n", strerror(errno));
+		exit(1);
+	} else if (recv == 0) {
 
-		printf("here1\n");
-		recv = recvmsg(s, msg, 0);
-		if (recv < 0) {
-
-			printf("%s\n", strerror(errno));
-			exit(1);
-		} else if (recv == 0) {
-
-			printf("recvmsg len 0, Connection closed\n");
-			exit(1);
-		}
-
-		printf("here2\n");
-		check_packet((char *)msg->msg_iov->iov_base, recv);
-
-		pkt = update_packet(pkt);
-		sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
-		if (sent < 0) {
-
-			printf("errno %d: %s\n", errno, strerror(errno));
-			exit(1);
-		}
-		printf("here3\n");
+		printf("recvmsg len 0, Connection closed\n");
+		exit(1);
 	}
+
+	check_packet((char *)msg->msg_iov->iov_base, recv);
 }
 
 int		main(void) {
 
+	g_ping.s = create_socket();
+	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
+	g_ping.pkt = create_ping_packet();
 
-	ping_loop();
+	// First ping
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	if (sent < 0) {
 
+		printf("errno %d: %s\n", errno, strerror(errno));
+		exit(1);
+	}
+	g_ping.npackets++;
+	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
+	struct msghdr* msg = create_msg_receiver();
+
+	ssize_t recv = recvmsg(g_ping.s, msg, 0);
+	if (recv < 0) {
+
+		printf("%s\n", strerror(errno));
+		exit(1);
+	} else if (recv == 0) {
+
+		printf("recvmsg len 0, Connection closed\n");
+		exit(1);
+	}
+
+	check_packet((char *)msg->msg_iov->iov_base, recv);
+
+	signal(SIGALRM, pinger);
+	alarm(1);
+	while (1);
 	return (0);
 }

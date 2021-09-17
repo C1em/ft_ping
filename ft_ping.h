@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 14:24:09 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 17:06:00 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,8 +30,10 @@ struct tv32 {
 
 struct ping {
 
-	unsigned int npackets;
-	unsigned int ntransmitted;
+	struct ip		*pkt;
+	int				s; // socket
+	unsigned int	npackets;
+	unsigned int	ntransmitted;
 };
 
 #endif
