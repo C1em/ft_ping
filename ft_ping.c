@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 20:49:35 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/17 20:58:02 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <netdb.h> //  getaddrinfo()
 #include <sys/time.h>
-
+#include <signal.h> // signal() SIGALARM
 #include "ft_ping.h"
 
 struct ping g_ping;
