@@ -6,14 +6,14 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 17:06:00 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/22 17:02:56 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef FT_PING_H
 # define FT_PING_H
 
-#define DEST_IP				"127.0.0.1"
+#define DEST_IP				"8.8.8.8"
 
 #ifdef __linux__
 	#define IS_LINUX (1)
@@ -26,14 +26,21 @@ struct tv32 {
 	u_int32_t tv32_usec;
 };
 
+# define PING_TIMEOUT_SEC 1
+
 # define TV_LEN (sizeof(struct tv32))
+
+# define F_VERBOSE 0x1
 
 struct ping {
 
+	struct tv32		last_ping;
 	struct ip		*pkt;
 	int				s; // socket
-	unsigned int	npackets;
 	unsigned int	ntransmitted;
+	unsigned int	nreceived;
+	unsigned int	nmissedmax;
+	unsigned int	options;
 };
 
 #endif

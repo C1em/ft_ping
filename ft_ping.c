@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/17 22:27:48 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/22 17:03:06 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,11 +24,13 @@
 #include <stdio.h>
 #include <netdb.h> //  getaddrinfo()
 #include <sys/time.h>
-#include <signal.h> // signal() SIGALARM
 #include "ft_ping.h"
 
-struct ping g_ping;
+volatile struct ping g_ping;
 
+/**
+ * debug purpose
+ */
 void	print_mem(void* ptr, unsigned int len) {
 
 	for (int i = 0; i < len; i++) {
@@ -36,54 +38,6 @@ void	print_mem(void* ptr, unsigned int len) {
 		printf("0x%x ", ((unsigned char*)ptr)[i]);
 	}
 	printf("\n");
-}
-
-unsigned short in_cksum(unsigned short *ptr, unsigned int len) {
-
-	unsigned long checksum = 0;
-	while (len > 1) {
-
-		checksum += *ptr++;
-		len -= sizeof(short);
-	}
-
-	//if any bytes left, pad the bytes and add
-	if(len > 0)
-		checksum += ((*ptr)&htons(0xFF00));
-
-	//Fold checksum to 16 bits: add carrier to result
-	while (checksum >> 16)
-		checksum = (checksum & 0xffff) + (checksum >> 16);
-
-	checksum = ~checksum;
-	return ((unsigned short)checksum);
-}
-
-struct ip	*build_iphdr(struct ip* ip_hdr) {
-
-	ip_hdr->ip_v = 4;
-	ip_hdr->ip_hl = 5;
-	ip_hdr->ip_tos = 0;
-	ip_hdr->ip_ttl = 64;
-	ip_hdr->ip_p = IPPROTO_ICMP;
-	ip_hdr->ip_id = htons((unsigned short)getpid());
-
-	ip_hdr->ip_off = 0;
-	ip_hdr->ip_src.s_addr = INADDR_ANY;
-
-	if (inet_pton(AF_INET, DEST_IP, &(ip_hdr->ip_dst)) <= 0) {
-
-		printf("ip_dst\n");
-		exit(1);
-	}
-
-	// on Linux ip_len is filled by the kernel
-	if (!IS_LINUX)
-		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN + TV_LEN);
-
-	// done by kernel
-	// ip_hdr->ip_sum = htons(in_cksum((unsigned short*)ip_hdr, 20));
-	return (ip_hdr);
 }
 
 void	print_ip_hdr(struct ip* ip_hdr) {
@@ -137,6 +91,54 @@ void	print_icmp_hdr(struct ip* ip_hdr) {
 	printf("_____________________\n");
 }
 
+unsigned short	in_cksum(unsigned short *ptr, unsigned int len) {
+
+	unsigned long checksum = 0;
+	while (len > 1) {
+
+		checksum += *ptr++;
+		len -= sizeof(short);
+	}
+
+	//if any bytes left, pad the bytes and add
+	if(len > 0)
+		checksum += ((*ptr)&htons(0xFF00));
+
+	//Fold checksum to 16 bits: add carrier to result
+	while (checksum >> 16)
+		checksum = (checksum & 0xffff) + (checksum >> 16);
+
+	checksum = ~checksum;
+	return ((unsigned short)checksum);
+}
+
+struct ip	*build_iphdr(struct ip* ip_hdr) {
+
+	ip_hdr->ip_v = 4;
+	ip_hdr->ip_hl = 5;
+	ip_hdr->ip_tos = 0;
+	ip_hdr->ip_ttl = 64;
+	ip_hdr->ip_p = IPPROTO_ICMP;
+	ip_hdr->ip_id = htons((unsigned short)getpid());
+
+	ip_hdr->ip_off = 0;
+	ip_hdr->ip_src.s_addr = INADDR_ANY;
+
+	if (inet_pton(AF_INET, DEST_IP, &(ip_hdr->ip_dst)) <= 0) {
+
+		printf("ip_dst\n");
+		exit(1);
+	}
+
+	// on Linux ip_len is filled by the kernel
+	if (!IS_LINUX)
+		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN + TV_LEN);
+
+	// done by kernel
+	// ip_hdr->ip_sum = htons(in_cksum((unsigned short*)ip_hdr, 20));
+	return (ip_hdr);
+}
+
 struct ip	*build_icmphdr(struct ip* ip_hdr) {
 
 	struct icmp	*icmp_hdr = (struct icmp*)(ip_hdr + 1);
@@ -148,8 +150,8 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	icmp_hdr->icmp_cksum = 0;
 
 	icmp_hdr->icmp_hun.ih_idseq.icd_id = htons((unsigned short)getpid());
-	icmp_hdr->icmp_hun.ih_idseq.icd_seq = g_ping.npackets;
-	g_ping.npackets++;
+	icmp_hdr->icmp_hun.ih_idseq.icd_seq = htons(g_ping.ntransmitted);
+	g_ping.ntransmitted++;
 
 	(void)gettimeofday(&now, NULL);
 
@@ -160,6 +162,218 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + TV_LEN);
 	return (ip_hdr);
 }
+
+
+/*
+ * pr_iph --
+ *	Print an IP header with options.
+ */
+void	pr_iph(struct ip *ip)
+{
+	u_char *cp;
+	int hlen;
+
+	hlen = ip->ip_hl << 2;
+	cp = (u_char *)ip + 20;		/* point to options */
+
+	(void)printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst\n");
+	(void)printf(
+		" %1x  %1x  %02x %04x %04x",
+		ip->ip_v, ip->ip_hl, ip->ip_tos, ntohs(ip->ip_len),
+		ntohs(ip->ip_id)
+	);
+	(void)printf(
+		"   %1lx %04lx",
+		(u_long) (ntohl(ip->ip_off) & 0xe000) >> 13,
+		(u_long) ntohl(ip->ip_off) & 0x1fff
+	);
+	(void)printf(
+		"  %02x  %02x %04x",
+		ip->ip_ttl,
+		ip->ip_p,
+		ntohs(ip->ip_sum)
+	);
+	(void)printf(" %s ", inet_ntoa(*(struct in_addr *)&ip->ip_src.s_addr));
+	(void)printf(" %s ", inet_ntoa(*(struct in_addr *)&ip->ip_dst.s_addr));
+	/* dump any option bytes */
+	while (hlen-- > 20) {
+		(void)printf("%02x", *cp++);
+	}
+	(void)putchar('\n');
+}
+
+/*
+ * pr_retip --
+ *	Dump some info on a returned (via ICMP) IP packet.
+ */
+void	pr_retip(struct ip *ip)
+{
+	u_char *cp;
+	int hlen;
+
+	pr_iph(ip);
+	hlen = ip->ip_hl << 2;
+	cp = (u_char *)ip + hlen;
+
+	if (ip->ip_p == 6)
+		(void)printf(
+			"TCP: from port %u, to port %u (decimal)\n",
+			(*cp * 256 + *(cp + 1)), (*(cp + 2) * 256 + *(cp + 3))
+		);
+	else if (ip->ip_p == 17)
+		(void)printf(
+			"UDP: from port %u, to port %u (decimal)\n",
+			(*cp * 256 + *(cp + 1)), (*(cp + 2) * 256 + *(cp + 3))
+		);
+}
+
+
+/*
+ * pr_icmph --
+ *	Print a descriptive string about an ICMP header.
+ */
+void	pr_icmph(struct icmp *icp)
+{
+
+	switch(icp->icmp_type) {
+	case ICMP_ECHOREPLY:
+		(void)printf("Echo Reply\n");
+		/* XXX ID + Seq + Data */
+		break;
+	case ICMP_UNREACH:
+		switch(icp->icmp_code) {
+		case ICMP_UNREACH_NET:
+			(void)printf("Destination Net Unreachable\n");
+			break;
+		case ICMP_UNREACH_HOST:
+			(void)printf("Destination Host Unreachable\n");
+			break;
+		case ICMP_UNREACH_PROTOCOL:
+			(void)printf("Destination Protocol Unreachable\n");
+			break;
+		case ICMP_UNREACH_PORT:
+			(void)printf("Destination Port Unreachable\n");
+			break;
+		case ICMP_UNREACH_NEEDFRAG:
+			(void)printf("frag needed and DF set (MTU %d)\n",
+					ntohs(icp->icmp_nextmtu));
+			break;
+		case ICMP_UNREACH_SRCFAIL:
+			(void)printf("Source Route Failed\n");
+			break;
+		case ICMP_UNREACH_FILTER_PROHIB:
+			(void)printf("Communication prohibited by filter\n");
+			break;
+		default:
+			(void)printf("Dest Unreachable, Bad Code: %d\n",
+			    icp->icmp_code);
+			break;
+		}
+		/* Print returned IP header information */
+#ifndef icmp_data
+		pr_retip(&icp->icmp_ip);
+#else
+		pr_retip((struct ip *)icp->icmp_data);
+#endif
+		break;
+	case ICMP_SOURCEQUENCH:
+		(void)printf("Source Quench\n");
+#ifndef icmp_data
+		pr_retip(&icp->icmp_ip);
+#else
+		pr_retip((struct ip *)icp->icmp_data);
+#endif
+		break;
+	case ICMP_REDIRECT:
+		switch(icp->icmp_code) {
+		case ICMP_REDIRECT_NET:
+			(void)printf("Redirect Network");
+			break;
+		case ICMP_REDIRECT_HOST:
+			(void)printf("Redirect Host");
+			break;
+		case ICMP_REDIRECT_TOSNET:
+			(void)printf("Redirect Type of Service and Network");
+			break;
+		case ICMP_REDIRECT_TOSHOST:
+			(void)printf("Redirect Type of Service and Host");
+			break;
+		default:
+			(void)printf("Redirect, Bad Code: %d", icp->icmp_code);
+			break;
+		}
+		(void)printf("(New addr: %s)\n", inet_ntoa(icp->icmp_gwaddr));
+#ifndef icmp_data
+		pr_retip(&icp->icmp_ip);
+#else
+		pr_retip((struct ip *)icp->icmp_data);
+#endif
+		break;
+	case ICMP_ECHO:
+		(void)printf("Echo Request\n");
+		/* XXX ID + Seq + Data */
+		break;
+	case ICMP_TIMXCEED:
+		switch(icp->icmp_code) {
+		case ICMP_TIMXCEED_INTRANS:
+			(void)printf("Time to live exceeded\n");
+			break;
+		case ICMP_TIMXCEED_REASS:
+			(void)printf("Frag reassembly time exceeded\n");
+			break;
+		default:
+			(void)printf("Time exceeded, Bad Code: %d\n",
+			    icp->icmp_code);
+			break;
+		}
+#ifndef icmp_data
+		pr_retip(&icp->icmp_ip);
+#else
+		pr_retip((struct ip *)icp->icmp_data);
+#endif
+		break;
+	case ICMP_PARAMPROB:
+		(void)printf("Parameter problem: pointer = 0x%02x\n",
+		    icp->icmp_hun.ih_pptr);
+#ifndef icmp_data
+		pr_retip(&icp->icmp_ip);
+#else
+		pr_retip((struct ip *)icp->icmp_data);
+#endif
+		break;
+	case ICMP_TSTAMP:
+		(void)printf("Timestamp\n");
+		/* XXX ID + Seq + 3 timestamps */
+		break;
+	case ICMP_TSTAMPREPLY:
+		(void)printf("Timestamp Reply\n");
+		/* XXX ID + Seq + 3 timestamps */
+		break;
+	case ICMP_IREQ:
+		(void)printf("Information Request\n");
+		/* XXX ID + Seq */
+		break;
+	case ICMP_IREQREPLY:
+		(void)printf("Information Reply\n");
+		/* XXX ID + Seq */
+		break;
+	case ICMP_MASKREQ:
+		(void)printf("Address Mask Request\n");
+		break;
+	case ICMP_MASKREPLY:
+		(void)printf("Address Mask Reply\n");
+		break;
+	case ICMP_ROUTERADVERT:
+		(void)printf("Router Advertisement\n");
+		break;
+	case ICMP_ROUTERSOLICIT:
+		(void)printf("Router Solicitation\n");
+		break;
+	default:
+		(void)printf("Bad ICMP type: %d\n", icp->icmp_type);
+	}
+}
+
 
 void check_packet(char *buf, int cc) {
 
@@ -205,25 +419,20 @@ void check_packet(char *buf, int cc) {
 		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
 
 		printf(
-			"%u bytes from %s: icmp_seq=%u ttl=%u time=%f ms\n",
+			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms\n",
 			(IS_LINUX) ? ntohs(ip->ip_len) : ip->ip_len,
 			ip_src,
-			icp->icmp_hun.ih_idseq.icd_seq,
+			ntohs(icp->icmp_hun.ih_idseq.icd_seq),
 			ip->ip_ttl,
 			triptime
 		);
 
 	} else {
 
-		// drop ICMP_ECHO
-		if (icp->icmp_type == ICMP_ECHO) {
+		if (g_ping.options & F_VERBOSE) {
 
-			printf("recv ICMP_ECHO\n");
-			return ;
+			pr_icmph(icp);
 		}
-
-		printf("not a echoreply type: %u\n", icp->icmp_type);
-		exit(1);
 	}
 }
 
@@ -273,9 +482,6 @@ struct ip	*create_ping_packet(void) {
 	pkt = build_iphdr(pkt);
 	pkt = build_icmphdr(pkt);
 
-	// print_ip_hdr(pkt);
-	// print_icmp_hdr(pkt);
-
 	return (pkt);
 }
 
@@ -299,8 +505,8 @@ struct ip	*update_packet(struct ip* pkt) {
 	struct timeval now;
 	struct tv32 tv32;
 
-	icmp_hdr->icmp_hun.ih_idseq.icd_seq = g_ping.npackets;
-	g_ping.npackets++;
+	icmp_hdr->icmp_hun.ih_idseq.icd_seq = htons(g_ping.ntransmitted);
+	g_ping.ntransmitted++;
 
 	(void)gettimeofday(&now, NULL);
 
@@ -313,52 +519,7 @@ struct ip	*update_packet(struct ip* pkt) {
 	return (pkt);
 }
 
-// void	ping_loop(void) {
-
-// 	int s = create_socket();
-// 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
-// 	struct ip *pkt = create_ping_packet();
-
-// 	// First ping
-// 	ssize_t sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
-// 	if (sent < 0) {
-
-// 		printf("errno %d: %s\n", errno, strerror(errno));
-// 		exit(1);
-// 	}
-// 	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
-// 	struct msghdr* msg = create_msg_receiver();
-// 	ssize_t recv;
-
-// 	while(1) {
-
-// 		printf("here1\n");
-// 		recv = recvmsg(s, msg, 0);
-// 		if (recv < 0) {
-
-// 			printf("%s\n", strerror(errno));
-// 			exit(1);
-// 		} else if (recv == 0) {
-
-// 			printf("recvmsg len 0, Connection closed\n");
-// 			exit(1);
-// 		}
-
-// 		printf("here2\n");
-// 		check_packet((char *)msg->msg_iov->iov_base, recv);
-
-// 		pkt = update_packet(pkt);
-// 		sent = sendto(s, (char*)pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
-// 		if (sent < 0) {
-
-// 			printf("errno %d: %s\n", errno, strerror(errno));
-// 			exit(1);
-// 		}
-// 		printf("here3\n");
-// 	}
-// }
-
-void	pinger(int signum) {
+void	pinger(void) {
 
 	g_ping.pkt = update_packet(g_ping.pkt);
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
@@ -368,7 +529,10 @@ void	pinger(int signum) {
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
-	alarm(1);
+	struct timeval now;
+	(void)gettimeofday(&now, NULL);
+	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
+	g_ping.last_ping.tv32_usec = (u_int32_t)now.tv_usec;
 }
 
 int		main(void) {
@@ -376,6 +540,11 @@ int		main(void) {
 	g_ping.s = create_socket();
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
 	g_ping.pkt = create_ping_packet();
+	struct timeval now;
+	struct timeval timeout;
+
+	// TODO: parse args
+	g_ping.options |= F_VERBOSE;
 
 	// First ping
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
@@ -385,27 +554,48 @@ int		main(void) {
 		exit(1);
 	}
 	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
+	(void)gettimeofday(&now, NULL);
+	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
+	g_ping.last_ping.tv32_usec = (u_int32_t)now.tv_usec;
 	struct msghdr* msg = create_msg_receiver();
 
-	ssize_t recv = recvmsg(g_ping.s, msg, 0);
-	if (recv < 0) {
-
-		printf("%s\n", strerror(errno));
-		exit(1);
-	} else if (recv == 0) {
-
-		printf("recvmsg len 0, Connection closed\n");
-		exit(1);
-	}
-
-	check_packet((char *)msg->msg_iov->iov_base, recv);
-
-	signal(SIGALRM, pinger);
-	alarm(1);
-
+	ssize_t recv;
 	while (1) {
 
+		(void)gettimeofday(&now, NULL);
+		timeout.tv_sec = (long)g_ping.last_ping.tv32_sec + PING_TIMEOUT_SEC - now.tv_sec;
+		timeout.tv_usec = g_ping.last_ping.tv32_usec - now.tv_usec;
+		while (timeout.tv_usec < 0) {
+			timeout.tv_usec += 1000000;
+			timeout.tv_sec--;
+		}
+		while (timeout.tv_usec >= 1000000) {
+			timeout.tv_usec -= 1000000;
+			timeout.tv_sec++;
+		}
+		if (timeout.tv_sec < 0) {
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 1;
+		}
+		setsockopt(g_ping.s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+		// timeout is 0 so recvmesg is blocking
 		recv = recvmsg(g_ping.s, msg, 0);
+
+		if (errno == EAGAIN) { // timeout
+			pinger();
+			// printf("g_ping.ntransmitted - g_ping.nreceived - 1: %d\n", g_ping.ntransmitted - g_ping.nreceived - 1);
+			if (g_ping.ntransmitted - g_ping.nreceived - 1 > g_ping.nmissedmax) {
+
+				g_ping.nmissedmax = g_ping.ntransmitted - g_ping.nreceived - 1;
+				printf(
+					"Request timeout for icmp_seq %u\n",
+					g_ping.ntransmitted - 2
+				);
+			}
+			errno = 0;
+			continue;
+		}
+
 		if (recv < 0) {
 
 			printf("%s\n", strerror(errno));
@@ -415,7 +605,7 @@ int		main(void) {
 			printf("recvmsg len 0, Connection closed\n");
 			exit(1);
 		}
-
+		g_ping.nreceived++;
 		check_packet((char *)msg->msg_iov->iov_base, recv);
 	}
 	return (0);
