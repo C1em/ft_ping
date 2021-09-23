@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/23 14:39:03 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/23 15:10:24 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,9 +25,29 @@
 #include <netdb.h> //  getaddrinfo()
 #include <sys/time.h>
 #include "ft_ping.h"
-
+#include <signal.h> // signal() SIGINT SIGQUIT
 volatile struct ping g_ping;
 
+/*
+ * stopit --
+ *	Set the global bit that causes the main loop to quit.
+ * Do NOT call finish() from here, since finish() does far too much
+ * to be called from a signal handler.
+ */
+void
+stopit(int sig __unused)
+{
+
+	/*
+	 * When doing reverse DNS lookups, the finish_up flag might not
+	 * be noticed for a while.  Just exit if we get a second SIGINT.
+	 */
+	if (g_ping.finish_up)
+		_exit(g_ping.nreceived ? 0 : 2);
+
+	g_ping.finish_up = 1;
+
+}
 /**
  * debug purpose
  */
@@ -442,6 +462,34 @@ void check_packet(char *buf, int cc) {
 	putchar('\n');
 }
 
+/*
+ * finish --
+ *	Print out statistics, and give up.
+ */
+static void		finish(void)
+{
+
+	(void)signal(SIGINT, SIG_IGN);
+	(void)signal(SIGALRM, SIG_IGN);
+	(void)putchar('\n');
+	(void)printf("--- %s ping statistics ---\n", DEST_IP);
+	(void)printf("%u packets transmitted, ", g_ping.ntransmitted);
+	(void)printf("%u packets received, ", g_ping.nreceived);
+	if (g_ping.ntransmitted) {
+		if (g_ping.nreceived > g_ping.ntransmitted)
+			(void)printf("-- somebody's printing up packets!");
+		else
+			(void)printf("%.1f%% packet loss",
+			    ((g_ping.ntransmitted - g_ping.nreceived) * 100.0) /
+			    g_ping.ntransmitted);
+	}
+	(void)putchar('\n');
+	if (g_ping.nreceived)
+		exit(0);
+	else
+		exit(2);
+}
+
 int		create_socket(void) {
 
 	int s;
@@ -552,6 +600,9 @@ int		main(void) {
 	// TODO: parse args
 	g_ping.options |= F_VERBOSE;
 
+	signal(SIGINT, stopit);
+	signal(SIGQUIT, stopit);
+
 	// First ping
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
@@ -568,7 +619,7 @@ int		main(void) {
 	struct msghdr* msg = create_msg_receiver();
 
 	ssize_t recv;
-	while (1) {
+	while (!g_ping.finish_up) {
 
 		(void)gettimeofday(&now, NULL);
 		timeout.tv_sec = (long)g_ping.last_ping.tv32_sec + PING_TIMEOUT_SEC - now.tv_sec;
@@ -616,5 +667,6 @@ int		main(void) {
 
 		check_packet((char *)msg->msg_iov->iov_base, recv);
 	}
+	finish();
 	return (0);
 }

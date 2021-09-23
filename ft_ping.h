@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/23 14:38:13 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/23 15:02:23 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -41,6 +41,7 @@ struct ping {
 	unsigned int	nreceived;
 	unsigned int	nmissedmax;
 	unsigned int	options;
+	sig_atomic_t	finish_up;
 };
 
 #endif
