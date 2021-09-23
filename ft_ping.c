@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/22 17:03:06 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/23 14:39:03 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -374,14 +374,12 @@ void	pr_icmph(struct icmp *icp)
 	}
 }
 
-
 void check_packet(char *buf, int cc) {
 
 	u_char *cp;
 	struct icmp *icp;
 	struct ip *ip;
 	int hlen;
-	int recv_len;
 
 	if (!IS_LINUX)
 		((struct ip*)buf)->ip_len += ((struct ip*)buf)->ip_hl << 2;
@@ -389,22 +387,27 @@ void check_packet(char *buf, int cc) {
 	// Check the IP header
 	ip = (struct ip *)buf;
 	hlen = ip->ip_hl << 2;
-	recv_len = cc;
 	if (cc < hlen + ICMP_MINLEN) {
 
-		printf("received packet too small ?\n");
-		exit(1);
+		if (g_ping.options & F_VERBOSE)
+			fprintf(
+				stderr,
+				"packet too short (%d bytes) from %s",
+				cc,
+				DEST_IP
+			);
+		return;
 	}
 
-	// Now the ICMP part
+	// Check the ICMP header
 	icp = (struct icmp *)(buf + hlen);
+	cc -= hlen;
 	if (icp->icmp_type == ICMP_ECHOREPLY) {
 
-		if (ntohs(icp->icmp_id) != (unsigned short)getpid()) {
+		if (ntohs(icp->icmp_id) != (unsigned short)getpid()) // not our packet
+			return;
+		g_ping.nreceived++;
 
-			printf("not our packet\n");
-			exit(1);
-		}
 		char ip_src[16];
 		inet_ntop(AF_INET, &ip->ip_src, ip_src, sizeof(ip_src));
 
@@ -419,7 +422,7 @@ void check_packet(char *buf, int cc) {
 		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
 
 		printf(
-			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms\n",
+			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms",
 			(IS_LINUX) ? ntohs(ip->ip_len) : ip->ip_len,
 			ip_src,
 			ntohs(icp->icmp_hun.ih_idseq.icd_seq),
@@ -427,13 +430,16 @@ void check_packet(char *buf, int cc) {
 			triptime
 		);
 
-	} else {
+	} else if (g_ping.options & F_VERBOSE) { // not an echoreply
 
-		if (g_ping.options & F_VERBOSE) {
-
-			pr_icmph(icp);
-		}
+		(void)printf(
+			"%d bytes from %s: ",
+			cc,
+			DEST_IP
+		);
+		pr_icmph(icp);
 	}
+	putchar('\n');
 }
 
 int		create_socket(void) {
@@ -553,7 +559,9 @@ int		main(void) {
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
+
 	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
+
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
 	g_ping.last_ping.tv32_usec = (u_int32_t)now.tv_usec;
@@ -578,12 +586,12 @@ int		main(void) {
 			timeout.tv_usec = 1;
 		}
 		setsockopt(g_ping.s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-		// timeout is 0 so recvmesg is blocking
+
 		recv = recvmsg(g_ping.s, msg, 0);
 
 		if (errno == EAGAIN) { // timeout
+
 			pinger();
-			// printf("g_ping.ntransmitted - g_ping.nreceived - 1: %d\n", g_ping.ntransmitted - g_ping.nreceived - 1);
 			if (g_ping.ntransmitted - g_ping.nreceived - 1 > g_ping.nmissedmax) {
 
 				g_ping.nmissedmax = g_ping.ntransmitted - g_ping.nreceived - 1;
@@ -605,7 +613,7 @@ int		main(void) {
 			printf("recvmsg len 0, Connection closed\n");
 			exit(1);
 		}
-		g_ping.nreceived++;
+
 		check_packet((char *)msg->msg_iov->iov_base, recv);
 	}
 	return (0);

@@ -6,14 +6,14 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/22 17:02:56 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/23 14:38:13 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef FT_PING_H
 # define FT_PING_H
 
-#define DEST_IP				"8.8.8.8"
+#define DEST_IP				"8.8.8.9"
 
 #ifdef __linux__
 	#define IS_LINUX (1)
