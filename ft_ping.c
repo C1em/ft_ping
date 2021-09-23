@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/23 15:10:24 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/23 15:20:32 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -34,8 +34,7 @@ volatile struct ping g_ping;
  * Do NOT call finish() from here, since finish() does far too much
  * to be called from a signal handler.
  */
-void
-stopit(int sig __unused)
+void stopit(int sig __attribute__((unused)))
 {
 
 	/*
@@ -466,7 +465,7 @@ void check_packet(char *buf, int cc) {
  * finish --
  *	Print out statistics, and give up.
  */
-static void		finish(void)
+int		finish(void)
 {
 
 	(void)signal(SIGINT, SIG_IGN);
@@ -485,9 +484,9 @@ static void		finish(void)
 	}
 	(void)putchar('\n');
 	if (g_ping.nreceived)
-		exit(0);
+		return (0);
 	else
-		exit(2);
+		return (2);
 }
 
 int		create_socket(void) {
@@ -667,6 +666,5 @@ int		main(void) {
 
 		check_packet((char *)msg->msg_iov->iov_base, recv);
 	}
-	finish();
-	return (0);
+	return (finish());
 }
