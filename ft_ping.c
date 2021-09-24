@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/23 15:20:32 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/24 14:29:17 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -151,11 +151,20 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 
 	// on Linux ip_len is filled by the kernel
 	if (!IS_LINUX)
-		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN + TV_LEN);
+		ip_hdr->ip_len = (unsigned short)(sizeof(struct ip) + ICMP_MINLEN + DATA_LEN);
 
 	// done by kernel
 	// ip_hdr->ip_sum = htons(in_cksum((unsigned short*)ip_hdr, 20));
 	return (ip_hdr);
+}
+
+void		add_icmp_data(char *data) {
+
+	for (int i = 0; i < DATA_LEN - TV_LEN; i++) {
+
+		// fill the data with incrementing numbers
+		data[i] = (char)i % 256;
+	}
 }
 
 struct ip	*build_icmphdr(struct ip* ip_hdr) {
@@ -178,7 +187,9 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	tv32.tv32_usec = htonl(now.tv_usec);
 	memcpy((void*)&((char*)icmp_hdr)[ICMP_MINLEN], (void*)&tv32, TV_LEN);
 
-	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + TV_LEN);
+	add_icmp_data(&icmp_hdr->icmp_dun.id_data[TV_LEN]);
+
+	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + DATA_LEN);
 	return (ip_hdr);
 }
 
@@ -442,7 +453,7 @@ void check_packet(char *buf, int cc) {
 
 		printf(
 			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms",
-			(IS_LINUX) ? ntohs(ip->ip_len) : ip->ip_len,
+			cc,
 			ip_src,
 			ntohs(icp->icmp_hun.ih_idseq.icd_seq),
 			ip->ip_ttl,
@@ -530,7 +541,7 @@ struct sockaddr_in	build_dest_addr(char* str_dest) {
 
 struct ip	*create_ping_packet(void) {
 
-	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN + TV_LEN);
+	struct ip *pkt = (struct ip*)calloc(1, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN);
 
 	pkt = build_iphdr(pkt);
 	pkt = build_icmphdr(pkt);
@@ -568,7 +579,7 @@ struct ip	*update_packet(struct ip* pkt) {
 	memcpy((void*)&((char*)icmp_hdr)[ICMP_MINLEN], (void*)&tv32, TV_LEN);
 
 	icmp_hdr->icmp_cksum = 0;
-	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + TV_LEN);
+	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + DATA_LEN);
 	return (pkt);
 }
 
@@ -576,7 +587,7 @@ void	pinger(void) {
 
 	g_ping.pkt = update_packet(g_ping.pkt);
 	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
-	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
@@ -603,14 +614,14 @@ int		main(void) {
 	signal(SIGQUIT, stopit);
 
 	// First ping
-	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + TV_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
 
-	printf("PING %s (%s): %zd data bytes\n", DEST_IP, DEST_IP, sent);
+	printf("PING %s (%s): %d data bytes\n", DEST_IP, DEST_IP, DATA_LEN);
 
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
