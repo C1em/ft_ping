@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/24 14:29:17 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/26 14:39:33 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -135,7 +135,7 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 
 	ip_hdr->ip_v = 4;
 	ip_hdr->ip_hl = 5;
-	ip_hdr->ip_tos = 0;
+	ip_hdr->ip_tos = 64;
 	ip_hdr->ip_ttl = 64;
 	ip_hdr->ip_p = IPPROTO_ICMP;
 	ip_hdr->ip_id = htons((unsigned short)getpid());
@@ -429,6 +429,13 @@ void check_packet(char *buf, int cc) {
 		return;
 	}
 
+	char addr[16];
+	inet_ntop(AF_INET, &ip->ip_src, addr, sizeof(addr));
+	printf("src: %s\n", addr);
+	char addr2[16];
+	inet_ntop(AF_INET, &ip->ip_dst, addr2, sizeof(addr2));
+	printf("dst: %s\n", addr2);
+
 	// Check the ICMP header
 	icp = (struct icmp *)(buf + hlen);
 	cc -= hlen;
@@ -459,8 +466,12 @@ void check_packet(char *buf, int cc) {
 			ip->ip_ttl,
 			triptime
 		);
-
-	} else if (g_ping.options & F_VERBOSE) { // not an echoreply
+	} else if (
+		g_ping.options & F_VERBOSE
+		|| (ip->ip_p == IPPROTO_ICMP
+		&& icp->icmp_type == ICMP_ECHO
+		&& icp->icmp_hun.ih_idseq.icd_id == htons((unsigned short)getpid()))
+		) { // not an echoreply
 
 		(void)printf(
 			"%d bytes from %s: ",
@@ -489,9 +500,11 @@ int		finish(void)
 		if (g_ping.nreceived > g_ping.ntransmitted)
 			(void)printf("-- somebody's printing up packets!");
 		else
-			(void)printf("%.1f%% packet loss",
-			    ((g_ping.ntransmitted - g_ping.nreceived) * 100.0) /
-			    g_ping.ntransmitted);
+			(void)printf(
+				"%.1f%% packet loss",
+				((g_ping.ntransmitted - g_ping.nreceived) * 100.0) /
+				g_ping.ntransmitted
+			);
 	}
 	(void)putchar('\n');
 	if (g_ping.nreceived)
