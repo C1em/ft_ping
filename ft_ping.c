@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/27 16:12:06 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/27 20:53:26 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -419,13 +419,18 @@ void	check_packet(char *buf, int cc) {
 	hlen = ip->ip_hl << 2;
 	if (cc < hlen + ICMP_MINLEN) {
 
-		if (g_ping.options & F_VERBOSE)
+		if (g_ping.options & F_VERBOSE) {
+
+			char addr[16];
+			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
+
 			fprintf(
 				stderr,
 				"packet too short (%d bytes) from %s",
 				cc,
-				DEST_IP
+				addr
 			);
+		}
 		return;
 	}
 
@@ -438,9 +443,6 @@ void	check_packet(char *buf, int cc) {
 			return;
 		g_ping.nreceived++;
 
-		char ip_src[16];
-		inet_ntop(AF_INET, &ip->ip_src, ip_src, sizeof(ip_src));
-
 		struct tv32 sent_tv32;
 		struct timeval now;
 		(void)gettimeofday(&now, NULL);
@@ -451,6 +453,8 @@ void	check_packet(char *buf, int cc) {
 		cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
 		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
 
+		char ip_src[16];
+		inet_ntop(AF_INET, &ip->ip_src, ip_src, sizeof(ip_src));
 		printf(
 			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms",
 			cc,
@@ -471,10 +475,13 @@ void	check_packet(char *buf, int cc) {
 			oicmp->icmp_type == ICMP_ECHO &&
 			oicmp->icmp_id == htons((unsigned short)getpid()))
 		) {
+
+			char	addr[16];
+			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
 			(void)printf(
 				"%d bytes from %s: ",
 				cc,
-				DEST_IP
+				addr
 			);
 			pr_icmph(icp);
 		} else
@@ -493,7 +500,7 @@ int		finish(void)
 	(void)signal(SIGINT, SIG_IGN);
 	(void)signal(SIGALRM, SIG_IGN);
 	(void)putchar('\n');
-	(void)printf("--- %s ping statistics ---\n", DEST_IP);
+	(void)printf("--- %s ping statistics ---\n", g_ping.hostname);
 	(void)printf("%u packets transmitted, ", g_ping.ntransmitted);
 	(void)printf("%u packets received, ", g_ping.nreceived);
 	if (g_ping.ntransmitted) {
@@ -650,7 +657,7 @@ int		main(void) {
 	}
 
 	char	addr[16];
-	inet_ntop(AF_INET, (void*)&g_ping.dest_addr, addr, sizeof(g_ping.dest_addr));
+	inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
 	printf("PING %s (%s): %d data bytes\n", g_ping.hostname, addr, DATA_LEN);
 
 	(void)gettimeofday(&now, NULL);
