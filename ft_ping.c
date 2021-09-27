@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/27 15:32:48 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/27 15:38:42 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -470,13 +470,14 @@ void check_packet(char *buf, int cc) {
 			oip->ip_p == IPPROTO_ICMP &&
 			oicmp->icmp_type == ICMP_ECHO &&
 			oicmp->icmp_id == htons((unsigned short)getpid()))
-		)
+		) {
 			(void)printf(
 				"%d bytes from %s: ",
 				cc,
 				DEST_IP
 			);
 			pr_icmph(icp);
+		}
 	}
 	putchar('\n');
 }
@@ -634,7 +635,7 @@ int		main(void) {
 	struct timeval timeout;
 
 	// TODO: parse args
-	g_ping.options |= F_VERBOSE;
+	// g_ping.options |= F_VERBOSE;
 
 	signal(SIGINT, stopit);
 	signal(SIGQUIT, stopit);
