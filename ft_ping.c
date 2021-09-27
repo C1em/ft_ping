@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/27 15:38:42 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/27 15:40:56 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -477,7 +477,8 @@ void check_packet(char *buf, int cc) {
 				DEST_IP
 			);
 			pr_icmph(icp);
-		}
+		} else
+			return ;
 	}
 	putchar('\n');
 }
