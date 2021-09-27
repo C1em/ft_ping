@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/27 15:40:56 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/27 16:12:06 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -404,7 +404,7 @@ void	pr_icmph(struct icmp *icp)
 	}
 }
 
-void check_packet(char *buf, int cc) {
+void	check_packet(char *buf, int cc) {
 
 	u_char *cp;
 	struct icmp *icp;
@@ -680,6 +680,8 @@ int		main(void) {
 
 		recv = recvmsg(g_ping.s, msg, 0);
 
+		if (errno == EINTR) // interrupted
+			continue;
 		if (errno == EAGAIN) { // timeout
 
 			pinger();
