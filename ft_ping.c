@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/26 14:39:33 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/27 15:32:48 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -143,11 +143,11 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 	ip_hdr->ip_off = 0;
 	ip_hdr->ip_src.s_addr = INADDR_ANY;
 
-	if (inet_pton(AF_INET, DEST_IP, &(ip_hdr->ip_dst)) <= 0) {
-
-		printf("ip_dst\n");
-		exit(1);
-	}
+	memcpy(
+		&ip_hdr->ip_dst,
+		(void*)&g_ping.dest_addr.sin_addr.s_addr,
+		sizeof(g_ping.dest_addr.sin_addr.s_addr)
+	);
 
 	// on Linux ip_len is filled by the kernel
 	if (!IS_LINUX)
@@ -187,7 +187,7 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	tv32.tv32_usec = htonl(now.tv_usec);
 	memcpy((void*)&((char*)icmp_hdr)[ICMP_MINLEN], (void*)&tv32, TV_LEN);
 
-	add_icmp_data(&icmp_hdr->icmp_dun.id_data[TV_LEN]);
+	add_icmp_data(icmp_hdr->icmp_dun.id_data + TV_LEN);
 
 	icmp_hdr->icmp_cksum = in_cksum((unsigned short*)icmp_hdr, ICMP_MINLEN + DATA_LEN);
 	return (ip_hdr);
@@ -429,13 +429,6 @@ void check_packet(char *buf, int cc) {
 		return;
 	}
 
-	char addr[16];
-	inet_ntop(AF_INET, &ip->ip_src, addr, sizeof(addr));
-	printf("src: %s\n", addr);
-	char addr2[16];
-	inet_ntop(AF_INET, &ip->ip_dst, addr2, sizeof(addr2));
-	printf("dst: %s\n", addr2);
-
 	// Check the ICMP header
 	icp = (struct icmp *)(buf + hlen);
 	cc -= hlen;
@@ -466,19 +459,24 @@ void check_packet(char *buf, int cc) {
 			ip->ip_ttl,
 			triptime
 		);
-	} else if (
-		g_ping.options & F_VERBOSE
-		|| (ip->ip_p == IPPROTO_ICMP
-		&& icp->icmp_type == ICMP_ECHO
-		&& icp->icmp_hun.ih_idseq.icd_id == htons((unsigned short)getpid()))
-		) { // not an echoreply
+	} else { // not an echoreply
 
-		(void)printf(
-			"%d bytes from %s: ",
-			cc,
-			DEST_IP
-		);
-		pr_icmph(icp);
+		struct ip *oip = (struct ip *)icp->icmp_data;
+		struct icmp *oicmp = (struct icmp *)(oip + 1);
+
+		if (
+			g_ping.options & F_VERBOSE ||
+			(oip->ip_dst.s_addr == g_ping.dest_addr.sin_addr.s_addr &&
+			oip->ip_p == IPPROTO_ICMP &&
+			oicmp->icmp_type == ICMP_ECHO &&
+			oicmp->icmp_id == htons((unsigned short)getpid()))
+		)
+			(void)printf(
+				"%d bytes from %s: ",
+				cc,
+				DEST_IP
+			);
+			pr_icmph(icp);
 	}
 	putchar('\n');
 }
@@ -546,9 +544,25 @@ struct sockaddr_in	build_dest_addr(char* str_dest) {
 	struct sockaddr_in dest = (struct sockaddr_in){0};
 
 	dest.sin_family = AF_INET;
-	inet_pton(AF_INET, str_dest, &(dest.sin_addr));
 	memset(dest.sin_zero, 0, sizeof(dest.sin_zero));
 
+	if (inet_pton(AF_INET, str_dest, &(dest.sin_addr)) == 1)
+		memcpy((void*)g_ping.hostname, str_dest, sizeof(g_ping.hostname));
+	else {
+
+		struct addrinfo hints, *result;
+		memset (&hints, 0, sizeof (hints));
+		hints.ai_family = AF_INET;
+
+		if (getaddrinfo(str_dest, NULL, &hints, &result) != 0) {
+
+			printf("cannot resolve %s: %s\n", str_dest, hstrerror(h_errno));
+			exit(1);
+		}
+
+		memcpy(&dest.sin_addr, &result->ai_addr->sa_data, sizeof(dest.sin_addr));
+		memcpy((void*)g_ping.hostname, &result->ai_canonname, sizeof(g_ping.hostname));
+	}
 	return (dest);
 }
 
@@ -599,8 +613,7 @@ struct ip	*update_packet(struct ip* pkt) {
 void	pinger(void) {
 
 	g_ping.pkt = update_packet(g_ping.pkt);
-	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
-	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
@@ -615,7 +628,7 @@ void	pinger(void) {
 int		main(void) {
 
 	g_ping.s = create_socket();
-	struct sockaddr_in dest_addr = build_dest_addr(DEST_IP);
+	g_ping.dest_addr = build_dest_addr(DEST_IP);
 	g_ping.pkt = create_ping_packet();
 	struct timeval now;
 	struct timeval timeout;
@@ -627,14 +640,16 @@ int		main(void) {
 	signal(SIGQUIT, stopit);
 
 	// First ping
-	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr_in));
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
 
 		printf("errno %d: %s\n", errno, strerror(errno));
 		exit(1);
 	}
 
-	printf("PING %s (%s): %d data bytes\n", DEST_IP, DEST_IP, DATA_LEN);
+	char	addr[16];
+	inet_ntop(AF_INET, (void*)&g_ping.dest_addr, addr, sizeof(g_ping.dest_addr));
+	printf("PING %s (%s): %d data bytes\n", g_ping.hostname, addr, DATA_LEN);
 
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
@@ -687,7 +702,6 @@ int		main(void) {
 			printf("recvmsg len 0, Connection closed\n");
 			exit(1);
 		}
-
 		check_packet((char *)msg->msg_iov->iov_base, recv);
 	}
 	return (finish());

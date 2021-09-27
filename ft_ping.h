@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/25 14:19:17 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/26 16:47:45 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,14 +38,16 @@ struct tv32 {
 
 struct ping {
 
-	struct tv32		last_ping;
-	struct ip		*pkt;
-	int				s; // socket
-	unsigned int	ntransmitted;
-	unsigned int	nreceived;
-	unsigned int	nmissedmax;
-	unsigned int	options;
-	unsigned int	finish_up;
+	struct sockaddr_in	dest_addr;
+	struct tv32			last_ping;
+	struct ip			*pkt;
+	int					s; // socket
+	unsigned int		ntransmitted;
+	unsigned int		nreceived;
+	unsigned int		nmissedmax;
+	unsigned int		options;
+	unsigned int		finish_up;
+	char				hostname[16];
 };
 
 #endif
