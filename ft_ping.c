@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/27 20:53:26 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/29 16:09:16 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -410,6 +410,7 @@ void	check_packet(char *buf, int cc) {
 	struct icmp *icp;
 	struct ip *ip;
 	int hlen;
+	char addr[16]; // buffer for inet_ntop()
 
 	if (!IS_LINUX)
 		((struct ip*)buf)->ip_len += ((struct ip*)buf)->ip_hl << 2;
@@ -421,7 +422,6 @@ void	check_packet(char *buf, int cc) {
 
 		if (g_ping.options & F_VERBOSE) {
 
-			char addr[16];
 			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
 
 			fprintf(
@@ -453,12 +453,11 @@ void	check_packet(char *buf, int cc) {
 		cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
 		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
 
-		char ip_src[16];
-		inet_ntop(AF_INET, &ip->ip_src, ip_src, sizeof(ip_src));
+		inet_ntop(AF_INET, &ip->ip_src, addr, sizeof(addr));
 		printf(
 			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms",
 			cc,
-			ip_src,
+			addr,
 			ntohs(icp->icmp_hun.ih_idseq.icd_seq),
 			ip->ip_ttl,
 			triptime
@@ -474,9 +473,8 @@ void	check_packet(char *buf, int cc) {
 			oip->ip_p == IPPROTO_ICMP &&
 			oicmp->icmp_type == ICMP_ECHO &&
 			oicmp->icmp_id == htons((unsigned short)getpid()))
-		) {
+		) { // if verbose or is an answer to our packet
 
-			char	addr[16];
 			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
 			(void)printf(
 				"%d bytes from %s: ",
