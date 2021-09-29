@@ -6,16 +6,16 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/29 16:09:16 by coremart         ###   ########.fr       */
+/*   Updated: 2021/09/29 20:59:01 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include <sys/socket.h> // sendto() socket() CMSG_FIRSTHDR() CMSG_NXTHDR()
-#include <netinet/in.h> // IPPROTO_ICMP
+#include <netinet/in.h> // IPPROTO_ICMP AF_INET
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <arpa/inet.h>
-#include <stdlib.h> // malloc() free()
+#include <stdlib.h> // malloc() free() calloc()
 #include <unistd.h> // getuid()
 #include <errno.h>
 #include <string.h>
@@ -423,7 +423,6 @@ void	check_packet(char *buf, int cc) {
 		if (g_ping.options & F_VERBOSE) {
 
 			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
-
 			fprintf(
 				stderr,
 				"packet too short (%d bytes) from %s",
@@ -462,6 +461,34 @@ void	check_packet(char *buf, int cc) {
 			ip->ip_ttl,
 			triptime
 		);
+
+		// check the data
+		u_char *cp = (u_char*)&icp->icmp_dun.id_data[TV_LEN];
+		u_char *dp = &((u_char*)g_ping.pkt)[sizeof(struct ip) + ICMP_MINLEN + TV_LEN];
+		for (int i = 0; i < DATA_LEN - TV_LEN && cc > 0; ++i, ++cp, ++dp, --cc) {
+
+			if (*cp != *dp) {
+
+				printf("\nwrong data byte #%d should be 0x%x but was 0x%x", i, *dp, *cp);
+				printf("\ncp:");
+				cp = (u_char*)icp->icmp_data;
+				for (i = 0; i < DATA_LEN; ++i, ++cp) {
+
+					if ((i % 16) == 0)
+						printf("\n\t");
+					printf("%2x ", *cp);
+				}
+				printf("\ndp:");
+				cp = &((u_char*)g_ping.pkt)[sizeof(struct ip) + ICMP_MINLEN];
+				for (i = 0; i < DATA_LEN; ++i, ++cp) {
+
+					if ((i % 16) == 0)
+						printf("\n\t");
+					printf("%2x ", *cp);
+				}
+				break;
+			}
+		}
 	} else { // not an echoreply
 
 		struct ip *oip = (struct ip *)icp->icmp_data;
@@ -473,7 +500,7 @@ void	check_packet(char *buf, int cc) {
 			oip->ip_p == IPPROTO_ICMP &&
 			oicmp->icmp_type == ICMP_ECHO &&
 			oicmp->icmp_id == htons((unsigned short)getpid()))
-		) { // if verbose or is an answer to our packet
+		) { // if verbose or is a reply to our packet
 
 			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
 			(void)printf(
