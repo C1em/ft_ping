@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/21 20:49:07 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/21 20:54:10 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -64,68 +64,6 @@ void stopit(int sig __attribute__((unused)))
 
 	g_ping.finish_up = 1;
 
-}
-/**
- * debug purpose
- */
-void	print_mem(void* ptr, unsigned int len) {
-
-	for (int i = 0; i < len; i++) {
-
-		printf("0x%x ", ((unsigned char*)ptr)[i]);
-	}
-	printf("\n");
-}
-
-void	print_ip_hdr(struct ip* ip_hdr) {
-
-	printf("_____________________\n");
-	printf("ip_hl: %u\n", ip_hdr->ip_hl);
-	printf("ip_v: %u\n", ip_hdr->ip_v);
-	printf("ip_tos: %u\n", ip_hdr->ip_tos);
-	if (IS_LINUX)
-		printf("ip_len: %u\n", ntohs(ip_hdr->ip_len));
-	else // on FreeBSD and Macos ip_len is in host byte order
-		printf("ip_len: %u\n", ip_hdr->ip_len);
-	printf("ip_id: %u\n", ntohs(ip_hdr->ip_id));
-	printf("ip_off: %u\n", ip_hdr->ip_off);
-	printf("ip_ttl: %u\n", ip_hdr->ip_ttl);
-	printf("ip_p: %u\n", ip_hdr->ip_p);
-	printf("ip_sum: %u\n", ntohs(ip_hdr->ip_sum));
-
-	char addr[16];
-	inet_ntop(AF_INET, &ip_hdr->ip_src, addr, sizeof(addr));
-	printf("ip_src: %s\n", addr);
-	inet_ntop(AF_INET, &ip_hdr->ip_dst, addr, sizeof(addr));
-	printf("ip_dst: %s\n", addr);
-	printf("_____________________\n");
-}
-
-void	print_icmp_hdr(struct ip* ip_hdr) {
-
-
-	struct icmp* icmp_hdr = (struct icmp*)(ip_hdr + 1);
-	printf("_____________________\n");
-	printf("icmp_type: %u\n", icmp_hdr->icmp_type);
-	printf("icmp_type: %u\n", icmp_hdr->icmp_code);
-	printf("icmp_hun.ih_idseq.icd_id: %u\n", ntohs(icmp_hdr->icmp_hun.ih_idseq.icd_id));
-	printf("icmp_hun.ih_idseq.icd_seq: %u\n", icmp_hdr->icmp_hun.ih_idseq.icd_seq);
-	printf("icmp_cksum: %u\n", icmp_hdr->icmp_cksum);
-
-	struct tv32 sent_tv32;
-	struct timeval now;
-	(void)gettimeofday(&now, NULL);
-	struct tv32 cur_tv32;
-	memcpy((void*)&sent_tv32, &((char*)icmp_hdr)[ICMP_MINLEN], TV_LEN);
-
-	cur_tv32.tv32_sec = (u_int32_t)now.tv_sec - ntohl(sent_tv32.tv32_sec);
-	cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
-	double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
-
-	printf("icmp tv32_sec: %u\n", ntohl(sent_tv32.tv32_sec));
-	printf("icmp tv32_usec: %u\n", ntohl(sent_tv32.tv32_usec));
-	printf("travel time: %.3f ms\n", triptime);
-	printf("_____________________\n");
 }
 
 unsigned short	in_cksum(unsigned short *ptr, unsigned int len) {
@@ -663,10 +601,8 @@ void	pinger(void) {
 
 	g_ping.pkt = update_packet(g_ping.pkt);
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
-	if (sent < 0) {
-
+	if (sent < 0)
 		printf("ping: sendto: %s\n", strerror(errno));
-	}
 	struct timeval now;
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
@@ -718,10 +654,8 @@ int		main(int ac, char **av) {
 	printf("PING %s (%s): %d data bytes\n", g_ping.hostname, addr, DATA_LEN);
 
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
-	if (sent < 0) {
-
+	if (sent < 0)
 		printf("ping: sendto: %s\n", strerror(errno));
-	}
 
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
