@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/29 20:59:01 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/21 20:49:07 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,8 +26,26 @@
 #include <sys/time.h>
 #include "ft_ping.h"
 #include <signal.h> // signal() SIGINT SIGQUIT
+#include <sysexits.h>
+#include <stdbool.h>
+#include "getopt.h"
+
 volatile struct ping g_ping;
 
+
+bool	is_space(char c) {
+
+	if (
+		c == '\t' ||
+		c == '\n' ||
+		c == '\r' ||
+		c == '\v' ||
+		c == '\f' ||
+		c == ' '
+	)
+		return (true);
+	return (false);
+}
 /*
  * stopit --
  *	Set the global bit that causes the main loop to quit.
@@ -573,29 +591,26 @@ int		create_socket(void) {
 	return (s);
 }
 
-struct sockaddr_in	build_dest_addr(char* str_dest) {
+struct sockaddr_in	build_dest_addr() {
 
 	struct sockaddr_in dest = (struct sockaddr_in){0};
 
 	dest.sin_family = AF_INET;
 	memset(dest.sin_zero, 0, sizeof(dest.sin_zero));
 
-	if (inet_pton(AF_INET, str_dest, &(dest.sin_addr)) == 1)
-		memcpy((void*)g_ping.hostname, str_dest, sizeof(g_ping.hostname));
-	else {
+	if (inet_pton(AF_INET, g_ping.hostname, &dest.sin_addr) != 1) {
 
 		struct addrinfo hints, *result;
-		memset (&hints, 0, sizeof (hints));
+		memset(&hints, 0, sizeof (hints));
 		hints.ai_family = AF_INET;
 
-		if (getaddrinfo(str_dest, NULL, &hints, &result) != 0) {
+		if (getaddrinfo(g_ping.hostname, NULL, &hints, &result) != 0) {
 
-			printf("cannot resolve %s: %s\n", str_dest, hstrerror(h_errno));
+			printf("cannot resolve %s: %s\n", g_ping.hostname, hstrerror(h_errno));
 			exit(1);
 		}
 
-		memcpy(&dest.sin_addr, &result->ai_addr->sa_data, sizeof(dest.sin_addr));
-		memcpy((void*)g_ping.hostname, &result->ai_canonname, sizeof(g_ping.hostname));
+		memcpy(&dest.sin_addr, &result->ai_addr->sa_data[2], sizeof(dest.sin_addr));
 	}
 	return (dest);
 }
@@ -650,8 +665,7 @@ void	pinger(void) {
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0) {
 
-		printf("errno %d: %s\n", errno, strerror(errno));
-		exit(1);
+		printf("ping: sendto: %s\n", strerror(errno));
 	}
 	struct timeval now;
 	(void)gettimeofday(&now, NULL);
@@ -659,31 +673,55 @@ void	pinger(void) {
 	g_ping.last_ping.tv32_usec = (u_int32_t)now.tv_usec;
 }
 
-int		main(void) {
+void	usage(void) {
+
+	fprintf(stderr, "usage: ping [-v] host\n");
+	exit(EX_USAGE);
+}
+
+int		main(int ac, char **av) {
 
 	g_ping.s = create_socket();
-	g_ping.dest_addr = build_dest_addr(DEST_IP);
-	g_ping.pkt = create_ping_packet();
 	struct timeval now;
 	struct timeval timeout;
+	int arg;
 
-	// TODO: parse args
-	// g_ping.options |= F_VERBOSE;
+	while ((arg = getopt(ac, av, "hv")) != -1) {
+
+		switch (arg) {
+
+			case 'h':
+				usage();
+			case 'v':
+				g_ping.options |= F_VERBOSE;
+				break;
+			default:
+				usage();
+		}
+	}
+
+	if (ac - optind != 1)
+		usage();
+
+	// host is the last argument
+	g_ping.hostname = av[optind];
+
+	g_ping.dest_addr = build_dest_addr();
+	g_ping.pkt = create_ping_packet();
 
 	signal(SIGINT, stopit);
 	signal(SIGQUIT, stopit);
 
 	// First ping
-	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
-	if (sent < 0) {
-
-		printf("errno %d: %s\n", errno, strerror(errno));
-		exit(1);
-	}
-
 	char	addr[16];
 	inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
 	printf("PING %s (%s): %d data bytes\n", g_ping.hostname, addr, DATA_LEN);
+
+	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
+	if (sent < 0) {
+
+		printf("ping: sendto: %s\n", strerror(errno));
+	}
 
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;

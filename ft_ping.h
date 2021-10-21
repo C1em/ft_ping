@@ -6,14 +6,12 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/09/26 16:47:45 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/21 16:56:25 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef FT_PING_H
 # define FT_PING_H
-
-#define DEST_IP				"127.0.0.1"
 
 #ifdef __linux__
 	#define IS_LINUX (1)
@@ -47,7 +45,7 @@ struct ping {
 	unsigned int		nmissedmax;
 	unsigned int		options;
 	unsigned int		finish_up;
-	char				hostname[16];
+	char				*hostname;
 };
 
 #endif
