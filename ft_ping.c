@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/21 20:54:10 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/22 16:03:43 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -451,7 +451,7 @@ void	check_packet(char *buf, int cc) {
 		struct icmp *oicmp = (struct icmp *)(oip + 1);
 
 		if (
-			g_ping.options & F_VERBOSE ||
+			(g_ping.options & F_VERBOSE && getuid() == 0) ||
 			(oip->ip_dst.s_addr == g_ping.dest_addr.sin_addr.s_addr &&
 			oip->ip_p == IPPROTO_ICMP &&
 			oicmp->icmp_type == ICMP_ECHO &&
