@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/23 19:39:45 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/23 19:54:26 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,9 +50,9 @@ double			ft_ping_sqrt(double x) {
 	long double xi = x / 2;
 	long double new_xi;
 
-	while (fabs(xi * xi - x) > 0.0000000000001) {
+	while (fabs(xi * xi - lx) > 0.0000000000001) {
 
-		new_xi = (xi + x / xi) / 2;
+		new_xi = (xi + lx / xi) / 2;
 
 		if (new_xi == xi) // cannot have more precision
 			break ;
@@ -178,7 +178,7 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 
 void		add_icmp_data(char *data) {
 
-	for (int i = 0; i < DATA_LEN - TV_LEN; i++) {
+	for (int i = 0; i < DATA_LEN - (int)TV_LEN; i++) {
 
 		// fill the data with incrementing numbers
 		data[i] = (char)i % 256;
@@ -424,7 +424,6 @@ void	pr_icmph(struct icmp *icp)
 
 void	check_packet(char *buf, int cc) {
 
-	u_char *cp;
 	struct icmp *icp;
 	struct ip *ip;
 	int hlen;
@@ -500,7 +499,7 @@ void	check_packet(char *buf, int cc) {
 		// check the data
 		u_char *cp = (u_char*)&icp->icmp_dun.id_data[TV_LEN];
 		u_char *dp = &((u_char*)g_ping.pkt)[sizeof(struct ip) + ICMP_MINLEN + TV_LEN];
-		for (int i = 0; i < DATA_LEN - TV_LEN && cc > 0; ++i, ++cp, ++dp, --cc) {
+		for (int i = 0; i < DATA_LEN - (int)TV_LEN && cc > 0; ++i, ++cp, ++dp, --cc) {
 
 			if (*cp != *dp) {
 
