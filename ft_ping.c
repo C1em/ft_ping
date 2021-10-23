@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/23 17:47:01 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/23 19:39:45 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -75,24 +75,57 @@ bool	is_space(char c) {
 		return (true);
 	return (false);
 }
+
+/*
+ * finish --
+ *	Print out statistics, and give up.
+ */
+int		finish(void)
+{
+
+	(void)signal(SIGINT, SIG_IGN);
+	(void)signal(SIGALRM, SIG_IGN);
+	(void)putchar('\n');
+	(void)printf("--- %s ping statistics ---\n", g_ping.hostname);
+	(void)printf("%u packets transmitted, ", g_ping.ntransmitted);
+	(void)printf("%u packets received, ", g_ping.nreceived);
+	if (g_ping.ntransmitted) {
+		if (g_ping.nreceived > g_ping.ntransmitted)
+			(void)printf("-- somebody's printing up packets!");
+		else
+			(void)printf(
+				"%.1f%% packet loss",
+				((g_ping.ntransmitted - g_ping.nreceived) * 100.0) /
+				g_ping.ntransmitted
+			);
+	}
+	(void)putchar('\n');
+	if (g_ping.nreceived) {
+
+		double n = g_ping.nreceived + g_ping.nrepeats;
+		double avg = g_ping.tsum / n;
+		double vari = g_ping.tsumsq / n - avg * avg;
+		(void)printf(
+			"round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+			g_ping.tmin,
+			avg,
+			g_ping.tmax,
+			ft_ping_sqrt(vari)
+			);
+		return (0);
+	}
+	return (2);
+}
+
 /*
  * stopit --
  *	Set the global bit that causes the main loop to quit.
  * Do NOT call finish() from here, since finish() does far too much
  * to be called from a signal handler.
  */
-void			stopit(int sig __attribute__((unused)))
-{
+void			stopit(int sig __attribute__((unused))) {
 
-	/*
-	 * When doing reverse DNS lookups, the finish_up flag might not
-	 * be noticed for a while.  Just exit if we get a second SIGINT.
-	 */
-	if (g_ping.finish_up)
-		_exit(g_ping.nreceived ? 0 : 2);
-
-	g_ping.finish_up = 1;
-
+	exit(finish());
 }
 
 unsigned short	in_cksum(unsigned short *ptr, unsigned int len) {
@@ -517,47 +550,6 @@ void	check_packet(char *buf, int cc) {
 	putchar('\n');
 }
 
-/*
- * finish --
- *	Print out statistics, and give up.
- */
-int		finish(void)
-{
-
-	(void)signal(SIGINT, SIG_IGN);
-	(void)signal(SIGALRM, SIG_IGN);
-	(void)putchar('\n');
-	(void)printf("--- %s ping statistics ---\n", g_ping.hostname);
-	(void)printf("%u packets transmitted, ", g_ping.ntransmitted);
-	(void)printf("%u packets received, ", g_ping.nreceived);
-	if (g_ping.ntransmitted) {
-		if (g_ping.nreceived > g_ping.ntransmitted)
-			(void)printf("-- somebody's printing up packets!");
-		else
-			(void)printf(
-				"%.1f%% packet loss",
-				((g_ping.ntransmitted - g_ping.nreceived) * 100.0) /
-				g_ping.ntransmitted
-			);
-	}
-	(void)putchar('\n');
-	if (g_ping.nreceived) {
-
-		double n = g_ping.nreceived + g_ping.nrepeats;
-		double avg = g_ping.tsum / n;
-		double vari = g_ping.tsumsq / n - avg * avg;
-		(void)printf(
-			"round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
-			g_ping.tmin,
-			avg,
-			g_ping.tmax,
-			ft_ping_sqrt(vari)
-			);
-		return (1);
-	}
-	return (2);
-}
-
 int		create_socket(void) {
 
 	int s;
@@ -575,8 +567,8 @@ int		create_socket(void) {
 	}
 
 	int hold = 1;
-	// tell the socket to not add the ip header because we provide our own
-	setsockopt(s, IPPROTO_IP, IP_HDRINCL, (char *)&hold, sizeof(hold));
+	// Tell the socket to not add the ip header because we provide our own
+	setsockopt(s, IPPROTO_IP, IP_HDRINCL, (char*)&hold, sizeof(hold));
 
 	// int hold = IP_MAXPACKET + 128;
 	// (void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
@@ -720,7 +712,7 @@ int		main(int ac, char **av) {
 	struct msghdr* msg = create_msg_receiver();
 
 	ssize_t recv;
-	while (!g_ping.finish_up) {
+	while (1) {
 
 		(void)gettimeofday(&now, NULL);
 		timeout.tv_sec = (long)g_ping.last_ping.tv32_sec + PING_TIMEOUT_SEC - now.tv_sec;
@@ -741,8 +733,6 @@ int		main(int ac, char **av) {
 
 		recv = recvmsg(g_ping.s, msg, 0);
 
-		if (errno == EINTR) // interrupted
-			continue;
 		if (errno == EAGAIN) { // timeout
 
 			pinger();
@@ -757,7 +747,6 @@ int		main(int ac, char **av) {
 			errno = 0;
 			continue;
 		}
-
 		if (recv < 0) {
 
 			printf("%s\n", strerror(errno));
@@ -769,5 +758,7 @@ int		main(int ac, char **av) {
 		}
 		check_packet((char *)msg->msg_iov->iov_base, recv);
 	}
-	return (finish());
+
+	// Makes compiler happy
+	return (1);
 }

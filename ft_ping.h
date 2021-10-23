@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/23 17:47:46 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/23 19:42:46 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,7 +62,6 @@ struct ping {
 	double				tmin;
 	double				tmax;
 	unsigned int		options;
-	unsigned int		finish_up;
 	char				*hostname;
 };
 
