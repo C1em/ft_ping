@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/31 12:46:55 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/21 16:56:25 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/23 17:47:46 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,6 +18,19 @@
 #else
 	#define IS_LINUX (0)
 #endif
+
+
+// number of received sequence numbers we can keep track of
+# define	MAX_DUP_CHK		(8 * 128)
+
+// keep track of seq to check duplicate
+char		rcvd_tbl[MAX_DUP_CHK / 8];
+
+# define	A(bit)		rcvd_tbl[(bit) / 8] // identify byte in array
+# define	B(bit)		(1 << ((bit) & 0x07)) // identify bit in byte
+# define	SET(bit)	(A(bit) |= B(bit))
+# define	TST(bit)	(A(bit) & B(bit))
+
 
 struct tv32 {
 	u_int32_t tv32_sec;
@@ -43,6 +56,11 @@ struct ping {
 	unsigned int		ntransmitted;
 	unsigned int		nreceived;
 	unsigned int		nmissedmax;
+	unsigned int		nrepeats;
+	double				tsum;
+	double				tsumsq;
+	double				tmin;
+	double				tmax;
 	unsigned int		options;
 	unsigned int		finish_up;
 	char				*hostname;

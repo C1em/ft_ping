@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/22 16:03:43 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/23 17:47:01 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,8 +30,37 @@
 #include <stdbool.h>
 #include "getopt.h"
 
-volatile struct ping g_ping;
+volatile struct ping g_ping = (struct ping){.tmin = 999999999.0};
 
+static double		fabs(double x) {
+
+	if (x < 0.0)
+		return (-x);
+	return x;
+}
+
+double			ft_ping_sqrt(double x) {
+
+	if (x < 0)
+		return (-1.0);
+	if (x == 0.0)
+		return (0.0);
+
+	long double lx = (long double)x;
+	long double xi = x / 2;
+	long double new_xi;
+
+	while (fabs(xi * xi - x) > 0.0000000000001) {
+
+		new_xi = (xi + x / xi) / 2;
+
+		if (new_xi == xi) // cannot have more precision
+			break ;
+
+		xi = new_xi;
+	}
+	return (xi);
+}
 
 bool	is_space(char c) {
 
@@ -52,7 +81,7 @@ bool	is_space(char c) {
  * Do NOT call finish() from here, since finish() does far too much
  * to be called from a signal handler.
  */
-void stopit(int sig __attribute__((unused)))
+void			stopit(int sig __attribute__((unused)))
 {
 
 	/*
@@ -398,6 +427,15 @@ void	check_packet(char *buf, int cc) {
 			return;
 		g_ping.nreceived++;
 
+		int seq = ntohs(icp->icmp_seq);
+
+		if (TST(seq % MAX_DUP_CHK)) {
+
+			++g_ping.nrepeats;
+			--g_ping.nreceived;
+		} else
+			SET(seq % MAX_DUP_CHK);
+
 		struct tv32 sent_tv32;
 		struct timeval now;
 		(void)gettimeofday(&now, NULL);
@@ -407,6 +445,14 @@ void	check_packet(char *buf, int cc) {
 		cur_tv32.tv32_sec = (u_int32_t)now.tv_sec - ntohl(sent_tv32.tv32_sec);
 		cur_tv32.tv32_usec = (u_int32_t)now.tv_usec - ntohl(sent_tv32.tv32_usec);
 		double triptime = ((double)cur_tv32.tv32_sec) * 1000.0 + ((double)cur_tv32.tv32_usec) / 1000.0;
+
+		g_ping.tsum += triptime;
+		g_ping.tsumsq += triptime * triptime;
+
+		if (triptime < g_ping.tmin)
+			g_ping.tmin = triptime;
+		if (triptime > g_ping.tmax)
+			g_ping.tmax = triptime;
 
 		inet_ntop(AF_INET, &ip->ip_src, addr, sizeof(addr));
 		printf(
@@ -495,10 +541,21 @@ int		finish(void)
 			);
 	}
 	(void)putchar('\n');
-	if (g_ping.nreceived)
-		return (0);
-	else
-		return (2);
+	if (g_ping.nreceived) {
+
+		double n = g_ping.nreceived + g_ping.nrepeats;
+		double avg = g_ping.tsum / n;
+		double vari = g_ping.tsumsq / n - avg * avg;
+		(void)printf(
+			"round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+			g_ping.tmin,
+			avg,
+			g_ping.tmax,
+			ft_ping_sqrt(vari)
+			);
+		return (1);
+	}
+	return (2);
 }
 
 int		create_socket(void) {
