@@ -6,13 +6,13 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/24 16:03:17 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/24 17:38:13 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include <sys/socket.h> // sendto() socket() CMSG_FIRSTHDR() CMSG_NXTHDR()
 #include <netinet/in.h> // IPPROTO_ICMP AF_INET
-#include <netinet/ip.h>
+#include <netinet/ip.h> // struct ip
 #include <netinet/ip_icmp.h>
 #include <arpa/inet.h>
 #include <stdlib.h> // malloc() free() calloc()
@@ -176,12 +176,12 @@ struct ip	*build_iphdr(struct ip* ip_hdr) {
 	return (ip_hdr);
 }
 
-void		add_icmp_data(char *data) {
+void		add_icmp_data(unsigned char *data) {
 
 	for (int i = 0; i < DATA_LEN - (int)TV_LEN; i++) {
 
 		// fill the data with incrementing numbers
-		data[i] = (char)i % 256;
+		data[i] = (unsigned char)i % 256;
 	}
 }
 
@@ -677,6 +677,7 @@ int		main(int ac, char **av) {
 
 			case 'h':
 				usage();
+				break;
 			case 'v':
 				g_ping.options |= F_VERBOSE;
 				break;
