@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/10/05 16:29:11 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/20 15:08:00 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/24 19:36:08 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,6 +17,7 @@
 char *optarg = NULL;
 int optind = 1;
 int optopt = '?';
+int opterr = 1;
 
 static int			_getopt_strcmp(char *s1, char *s2) {
 
