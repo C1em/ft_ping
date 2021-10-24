@@ -6,7 +6,7 @@
 #    By: coremart <coremart@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2021/10/23 19:44:59 by coremart          #+#    #+#              #
-#    Updated: 2021/10/24 16:57:20 by coremart         ###   ########.fr        #
+#    Updated: 2021/10/24 19:42:10 by coremart         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -14,7 +14,7 @@
 NAME = ft_ping
 ASANFLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security \
 			-fsanitize=undefined
-CFLAGS = -g -Werror -Wall -Wextra -std=c99
+CFLAGS = -g -Werror -Wall -Wextra -pedantic-errors -std=c99
 DFLAGS = -MT $@ -MMD -MP -MF $(DDIR)/$*.d
 AFLAGS =
 ASAN =
@@ -45,7 +45,7 @@ DEPS = $(patsubst %,$(DDIR)/%,$(_DEPS))
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	@if [ "$(AFLAGS)" == "" ];\
+	@if [ "$(AFLAGS)" = "" ];\
 	then\
 		make -j 8 -C $(LIB);\
 	else\
