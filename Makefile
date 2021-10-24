@@ -6,7 +6,7 @@
 #    By: coremart <coremart@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2021/10/23 19:44:59 by coremart          #+#    #+#              #
-#    Updated: 2021/10/23 19:51:06 by coremart         ###   ########.fr        #
+#    Updated: 2021/10/24 16:57:20 by coremart         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -51,10 +51,10 @@ $(NAME): $(OBJS)
 	else\
 		make -j 8 -C $(LIB) asan;\
 	fi
-	clang -o $(NAME) $(LIBA) $(OBJS) $(CFLAGS) $(AFLAGS)
+	${CC} -o $(NAME) $(LIBA) $(OBJS) $(CFLAGS) $(AFLAGS)
 
 $(ODIR)/%.o: $(SDIR)/%.c
-	clang $(CFLAGS) $(DFLAGS) -o $@ -c $< -I $(HDIR) $(AFLAGS)
+	${CC} $(CFLAGS) $(DFLAGS) -o $@ -c $< -I $(HDIR) $(AFLAGS)
 
 -include $(DEPS)
 
