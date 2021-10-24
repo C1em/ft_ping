@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/24 15:58:30 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/24 16:03:17 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -593,7 +593,7 @@ struct sockaddr_in	build_dest_addr() {
 		int error;
 		if ((error = getaddrinfo(g_ping.hostname, NULL, &hints, &result)) != 0) {
 
-			printf("ping: cannot resolve %s: %s\n", g_ping.hostname, gai_strerror(error));
+			printf("ping: cannot resolve %s: Unknown host\n", g_ping.hostname);
 			exit(1);
 		}
 
