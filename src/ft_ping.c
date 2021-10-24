@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/23 19:54:26 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/24 15:58:30 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -590,9 +590,10 @@ struct sockaddr_in	build_dest_addr() {
 		memset(&hints, 0, sizeof (hints));
 		hints.ai_family = AF_INET;
 
-		if (getaddrinfo(g_ping.hostname, NULL, &hints, &result) != 0) {
+		int error;
+		if ((error = getaddrinfo(g_ping.hostname, NULL, &hints, &result)) != 0) {
 
-			printf("cannot resolve %s: %s\n", g_ping.hostname, hstrerror(h_errno));
+			printf("ping: cannot resolve %s: %s\n", g_ping.hostname, gai_strerror(error));
 			exit(1);
 		}
 
