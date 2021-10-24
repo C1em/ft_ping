@@ -6,7 +6,7 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/24 19:45:59 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/24 19:55:53 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,7 +30,7 @@
 #include <stdbool.h>
 #include "getopt.h"
 
-volatile struct ping g_ping = (const struct ping){.tmin = 999999999.0};
+volatile struct ping g_ping = {.tmin = 999999999.0};
 
 static double		fabs(double x) {
 
