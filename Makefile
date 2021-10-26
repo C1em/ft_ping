@@ -6,7 +6,7 @@
 #    By: coremart <coremart@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2021/10/23 19:44:59 by coremart          #+#    #+#              #
-#    Updated: 2021/10/26 14:32:13 by coremart         ###   ########.fr        #
+#    Updated: 2021/10/26 16:03:13 by coremart         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -19,7 +19,7 @@ ASANFLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security \
 			-fsanitize=undefined
 CFLAGS = -g -Werror -Wall -Wextra -pedantic-errors
 
-ifeq ($(UNAME_S),Linux)
+ifeq ($(UNAME_S), Linux)
 CFLAGS += -std=gnu99
 endif
 ifeq ($(UNAME_S),Darwin)
@@ -63,6 +63,10 @@ $(NAME): $(OBJS)
 		make -j 8 -C $(LIB) asan;\
 	fi
 	${CC} -o $(NAME) $(LIBA) $(OBJS) $(CFLAGS) $(AFLAGS)
+	@if [ "$(UNAME_S)" = "Linux" ];\
+	then\
+		sudo setcap cap_net_raw+ep $(NAME);\
+	fi
 
 $(ODIR)/%.o: $(SDIR)/%.c
 	${CC} $(CFLAGS) $(DFLAGS) -o $@ -c $< -I $(HDIR) $(AFLAGS)
