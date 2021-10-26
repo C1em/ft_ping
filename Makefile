@@ -6,15 +6,26 @@
 #    By: coremart <coremart@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2021/10/23 19:44:59 by coremart          #+#    #+#              #
-#    Updated: 2021/10/24 19:42:10 by coremart         ###   ########.fr        #
+#    Updated: 2021/10/26 14:32:13 by coremart         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
+
+## OS ##
+UNAME_S := $(shell uname -s)
 
 ##COMPILATION ##
 NAME = ft_ping
 ASANFLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security \
 			-fsanitize=undefined
-CFLAGS = -g -Werror -Wall -Wextra -pedantic-errors -std=c99
+CFLAGS = -g -Werror -Wall -Wextra -pedantic-errors
+
+ifeq ($(UNAME_S),Linux)
+CFLAGS += -std=gnu99
+endif
+ifeq ($(UNAME_S),Darwin)
+CFLAGS += -std=c99
+endif
+
 DFLAGS = -MT $@ -MMD -MP -MF $(DDIR)/$*.d
 AFLAGS =
 ASAN =

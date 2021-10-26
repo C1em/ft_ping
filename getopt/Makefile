@@ -6,14 +6,25 @@
 #    By: coremart <coremart@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2021/10/20 15:16:13 by coremart          #+#    #+#              #
-#    Updated: 2021/10/20 15:19:40 by coremart         ###   ########.fr        #
+#    Updated: 2021/10/26 14:32:09 by coremart         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
+
+## OS ##
+UNAME_S := $(shell uname -s)
 
 ## COMPILATION ##
 NAME = getopt.a
 ASANFLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security -fsanitize=undefined
-CFLAGS = -g -Wall -Wextra -Werror -pedantic-errors -std=c99
+CFLAGS = -g -Wall -Wextra -Werror -pedantic-errors
+
+ifeq ($(UNAME_S),Linux)
+CFLAGS += -std=gnu99
+endif
+ifeq ($(UNAME_S),Darwin)
+CFLAGS += -std=c99
+endif
+
 DFLAGS = -MT $@ -MMD -MP -MF $(DDIR)/$*.d
 ASAN =
 
