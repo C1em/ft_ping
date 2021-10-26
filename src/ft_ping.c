@@ -6,22 +6,21 @@
 /*   By: coremart <coremart@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/08/12 18:38:26 by coremart          #+#    #+#             */
-/*   Updated: 2021/10/24 19:55:53 by coremart         ###   ########.fr       */
+/*   Updated: 2021/10/26 17:13:34 by coremart         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <sys/socket.h> // sendto() socket() CMSG_FIRSTHDR() CMSG_NXTHDR()
-#include <netinet/in.h> // IPPROTO_ICMP AF_INET
+#include <sys/socket.h> // sendto() socket() CMSG_FIRSTHDR() CMSG_NXTHDR() AF_INET
 #include <netinet/ip.h> // struct ip
-#include <netinet/ip_icmp.h>
-#include <arpa/inet.h>
+#include <netinet/ip_icmp.h> // struct icmp
+#include <arpa/inet.h> // inet_ntop() inet_ntoa()
 #include <stdlib.h> // malloc() free() calloc()
 #include <unistd.h> // getuid()
 #include <errno.h>
 #include <string.h>
 #include <netinet/if_ether.h> // struct ether_header
 #include <unistd.h> // getpid()
-#include <stdio.h>
+#include <stdio.h> // printf() fprintf()
 #include <netdb.h> //  getaddrinfo()
 #include <sys/time.h>
 #include "ft_ping.h"
@@ -36,7 +35,7 @@ static double		fabs(double x) {
 
 	if (x < 0.0)
 		return (-x);
-	return x;
+	return (x);
 }
 
 double			ft_ping_sqrt(double x) {
@@ -54,7 +53,7 @@ double			ft_ping_sqrt(double x) {
 
 		new_xi = (xi + lx / xi) / 2;
 
-		if (new_xi == xi) // cannot have more precision
+		if (new_xi == xi) // reach max precision
 			break ;
 
 		xi = new_xi;
@@ -76,15 +75,10 @@ bool	is_space(char c) {
 	return (false);
 }
 
-/*
- * finish --
- *	Print out statistics, and give up.
- */
-int		finish(void)
-{
+int		finish(void) {
 
-	(void)signal(SIGINT, SIG_IGN);
-	(void)signal(SIGALRM, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGALRM, SIG_IGN);
 	(void)putchar('\n');
 	(void)printf("--- %s ping statistics ---\n", g_ping.hostname);
 	(void)printf("%u packets transmitted, ", g_ping.ntransmitted);
@@ -117,12 +111,6 @@ int		finish(void)
 	return (2);
 }
 
-/*
- * stopit --
- *	Set the global bit that causes the main loop to quit.
- * Do NOT call finish() from here, since finish() does far too much
- * to be called from a signal handler.
- */
 void			stopit(int sig __attribute__((unused))) {
 
 	exit(finish());
@@ -211,18 +199,13 @@ struct ip	*build_icmphdr(struct ip* ip_hdr) {
 	return (ip_hdr);
 }
 
-
-/*
- * pr_iph --
- *	Print an IP header with options.
- */
 void	pr_iph(struct ip *ip)
 {
-	u_char *cp;
-	int hlen;
+	u_char	*cp;
+	int		hlen;
 
 	hlen = ip->ip_hl << 2;
-	cp = (u_char *)ip + 20;		/* point to options */
+	cp = (u_char*)ip + 20; // pointer on options
 
 	(void)printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst\n");
 	(void)printf(
@@ -243,25 +226,22 @@ void	pr_iph(struct ip *ip)
 	);
 	(void)printf(" %s ", inet_ntoa(*(struct in_addr *)&ip->ip_src.s_addr));
 	(void)printf(" %s ", inet_ntoa(*(struct in_addr *)&ip->ip_dst.s_addr));
-	/* dump any option bytes */
+
+	// print options
 	while (hlen-- > 20) {
 		(void)printf("%02x", *cp++);
 	}
 	(void)putchar('\n');
 }
 
-/*
- * pr_retip --
- *	Dump some info on a returned (via ICMP) IP packet.
- */
 void	pr_retip(struct ip *ip)
 {
-	u_char *cp;
-	int hlen;
+	u_char	*cp;
+	int		hlen;
 
 	pr_iph(ip);
 	hlen = ip->ip_hl << 2;
-	cp = (u_char *)ip + hlen;
+	cp = (u_char*)ip + hlen;
 
 	if (ip->ip_p == 6)
 		(void)printf(
@@ -275,150 +255,126 @@ void	pr_retip(struct ip *ip)
 		);
 }
 
-
-/*
- * pr_icmph --
- *	Print a descriptive string about an ICMP header.
- */
 void	pr_icmph(struct icmp *icp)
 {
 
 	switch(icp->icmp_type) {
-	case ICMP_ECHOREPLY:
-		(void)printf("Echo Reply\n");
-		/* XXX ID + Seq + Data */
-		break;
-	case ICMP_UNREACH:
-		switch(icp->icmp_code) {
-		case ICMP_UNREACH_NET:
-			(void)printf("Destination Net Unreachable\n");
+
+		case ICMP_ECHOREPLY:
+			(void)printf("Echo Reply\n");
+			/* XXX ID + Seq + Data */
 			break;
-		case ICMP_UNREACH_HOST:
-			(void)printf("Destination Host Unreachable\n");
+		case ICMP_UNREACH:
+			switch(icp->icmp_code) {
+			case ICMP_UNREACH_NET:
+				(void)printf("Destination Net Unreachable\n");
+				break;
+			case ICMP_UNREACH_HOST:
+				(void)printf("Destination Host Unreachable\n");
+				break;
+			case ICMP_UNREACH_PROTOCOL:
+				(void)printf("Destination Protocol Unreachable\n");
+				break;
+			case ICMP_UNREACH_PORT:
+				(void)printf("Destination Port Unreachable\n");
+				break;
+			case ICMP_UNREACH_NEEDFRAG:
+				(void)printf("frag needed and DF set (MTU %d)\n",
+						ntohs(icp->icmp_nextmtu));
+				break;
+			case ICMP_UNREACH_SRCFAIL:
+				(void)printf("Source Route Failed\n");
+				break;
+			case ICMP_UNREACH_FILTER_PROHIB:
+				(void)printf("Communication prohibited by filter\n");
+				break;
+			default:
+				(void)printf("Dest Unreachable, Bad Code: %d\n",
+					icp->icmp_code);
+				break;
+			}
+			/* Print returned IP header information */
+			pr_retip((struct ip *)icp->icmp_data);
 			break;
-		case ICMP_UNREACH_PROTOCOL:
-			(void)printf("Destination Protocol Unreachable\n");
+		case ICMP_SOURCEQUENCH:
+			(void)printf("Source Quench\n");
+			pr_retip((struct ip*)icp->icmp_data);
 			break;
-		case ICMP_UNREACH_PORT:
-			(void)printf("Destination Port Unreachable\n");
+		case ICMP_REDIRECT:
+			switch(icp->icmp_code) {
+			case ICMP_REDIRECT_NET:
+				(void)printf("Redirect Network");
+				break;
+			case ICMP_REDIRECT_HOST:
+				(void)printf("Redirect Host");
+				break;
+			case ICMP_REDIRECT_TOSNET:
+				(void)printf("Redirect Type of Service and Network");
+				break;
+			case ICMP_REDIRECT_TOSHOST:
+				(void)printf("Redirect Type of Service and Host");
+				break;
+			default:
+				(void)printf("Redirect, Bad Code: %d", icp->icmp_code);
+				break;
+			}
+			(void)printf("(New addr: %s)\n", inet_ntoa(icp->icmp_gwaddr));
+			pr_retip((struct ip *)icp->icmp_data);
 			break;
-		case ICMP_UNREACH_NEEDFRAG:
-			(void)printf("frag needed and DF set (MTU %d)\n",
-					ntohs(icp->icmp_nextmtu));
+		case ICMP_ECHO:
+			(void)printf("Echo Request\n");
+			/* XXX ID + Seq + Data */
 			break;
-		case ICMP_UNREACH_SRCFAIL:
-			(void)printf("Source Route Failed\n");
+		case ICMP_TIMXCEED:
+			switch(icp->icmp_code) {
+			case ICMP_TIMXCEED_INTRANS:
+				(void)printf("Time to live exceeded\n");
+				break;
+			case ICMP_TIMXCEED_REASS:
+				(void)printf("Frag reassembly time exceeded\n");
+				break;
+			default:
+				(void)printf("Time exceeded, Bad Code: %d\n",
+					icp->icmp_code);
+				break;
+			}
+			pr_retip((struct ip *)icp->icmp_data);
 			break;
-		case ICMP_UNREACH_FILTER_PROHIB:
-			(void)printf("Communication prohibited by filter\n");
+		case ICMP_PARAMPROB:
+			(void)printf("Parameter problem: pointer = 0x%02x\n",
+				icp->icmp_hun.ih_pptr);
+			pr_retip((struct ip *)icp->icmp_data);
+			break;
+		case ICMP_TSTAMP:
+			(void)printf("Timestamp\n");
+			/* XXX ID + Seq + 3 timestamps */
+			break;
+		case ICMP_TSTAMPREPLY:
+			(void)printf("Timestamp Reply\n");
+			/* XXX ID + Seq + 3 timestamps */
+			break;
+		case ICMP_IREQ:
+			(void)printf("Information Request\n");
+			/* XXX ID + Seq */
+			break;
+		case ICMP_IREQREPLY:
+			(void)printf("Information Reply\n");
+			/* XXX ID + Seq */
+			break;
+		case ICMP_MASKREQ:
+			(void)printf("Address Mask Request\n");
+			break;
+		case ICMP_MASKREPLY:
+			(void)printf("Address Mask Reply\n");
+			break;
+		case ICMP_ROUTERADVERT:
+			(void)printf("Router Advertisement\n");
+			break;
+		case ICMP_ROUTERSOLICIT:
+			(void)printf("Router Solicitation\n");
 			break;
 		default:
-			(void)printf("Dest Unreachable, Bad Code: %d\n",
-			    icp->icmp_code);
-			break;
-		}
-		/* Print returned IP header information */
-#ifndef icmp_data
-		pr_retip(&icp->icmp_ip);
-#else
-		pr_retip((struct ip *)icp->icmp_data);
-#endif
-		break;
-	case ICMP_SOURCEQUENCH:
-		(void)printf("Source Quench\n");
-#ifndef icmp_data
-		pr_retip(&icp->icmp_ip);
-#else
-		pr_retip((struct ip *)icp->icmp_data);
-#endif
-		break;
-	case ICMP_REDIRECT:
-		switch(icp->icmp_code) {
-		case ICMP_REDIRECT_NET:
-			(void)printf("Redirect Network");
-			break;
-		case ICMP_REDIRECT_HOST:
-			(void)printf("Redirect Host");
-			break;
-		case ICMP_REDIRECT_TOSNET:
-			(void)printf("Redirect Type of Service and Network");
-			break;
-		case ICMP_REDIRECT_TOSHOST:
-			(void)printf("Redirect Type of Service and Host");
-			break;
-		default:
-			(void)printf("Redirect, Bad Code: %d", icp->icmp_code);
-			break;
-		}
-		(void)printf("(New addr: %s)\n", inet_ntoa(icp->icmp_gwaddr));
-#ifndef icmp_data
-		pr_retip(&icp->icmp_ip);
-#else
-		pr_retip((struct ip *)icp->icmp_data);
-#endif
-		break;
-	case ICMP_ECHO:
-		(void)printf("Echo Request\n");
-		/* XXX ID + Seq + Data */
-		break;
-	case ICMP_TIMXCEED:
-		switch(icp->icmp_code) {
-		case ICMP_TIMXCEED_INTRANS:
-			(void)printf("Time to live exceeded\n");
-			break;
-		case ICMP_TIMXCEED_REASS:
-			(void)printf("Frag reassembly time exceeded\n");
-			break;
-		default:
-			(void)printf("Time exceeded, Bad Code: %d\n",
-			    icp->icmp_code);
-			break;
-		}
-#ifndef icmp_data
-		pr_retip(&icp->icmp_ip);
-#else
-		pr_retip((struct ip *)icp->icmp_data);
-#endif
-		break;
-	case ICMP_PARAMPROB:
-		(void)printf("Parameter problem: pointer = 0x%02x\n",
-		    icp->icmp_hun.ih_pptr);
-#ifndef icmp_data
-		pr_retip(&icp->icmp_ip);
-#else
-		pr_retip((struct ip *)icp->icmp_data);
-#endif
-		break;
-	case ICMP_TSTAMP:
-		(void)printf("Timestamp\n");
-		/* XXX ID + Seq + 3 timestamps */
-		break;
-	case ICMP_TSTAMPREPLY:
-		(void)printf("Timestamp Reply\n");
-		/* XXX ID + Seq + 3 timestamps */
-		break;
-	case ICMP_IREQ:
-		(void)printf("Information Request\n");
-		/* XXX ID + Seq */
-		break;
-	case ICMP_IREQREPLY:
-		(void)printf("Information Reply\n");
-		/* XXX ID + Seq */
-		break;
-	case ICMP_MASKREQ:
-		(void)printf("Address Mask Request\n");
-		break;
-	case ICMP_MASKREPLY:
-		(void)printf("Address Mask Reply\n");
-		break;
-	case ICMP_ROUTERADVERT:
-		(void)printf("Router Advertisement\n");
-		break;
-	case ICMP_ROUTERSOLICIT:
-		(void)printf("Router Solicitation\n");
-		break;
-	default:
-		(void)printf("Bad ICMP type: %d\n", icp->icmp_type);
+			(void)printf("Bad ICMP type: %d\n", icp->icmp_type);
 	}
 }
 
@@ -440,7 +396,7 @@ void	check_packet(char *buf, int cc) {
 		if (g_ping.options & F_VERBOSE) {
 
 			inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
-			fprintf(
+			(void)fprintf(
 				stderr,
 				"packet too short (%d bytes) from %s",
 				cc,
@@ -487,7 +443,7 @@ void	check_packet(char *buf, int cc) {
 			g_ping.tmax = triptime;
 
 		inet_ntop(AF_INET, &ip->ip_src, addr, sizeof(addr));
-		printf(
+		(void)printf(
 			"%u bytes from %s: icmp_seq=%u ttl=%u time=%.3f ms",
 			cc,
 			addr,
@@ -503,22 +459,22 @@ void	check_packet(char *buf, int cc) {
 
 			if (*cp != *dp) {
 
-				printf("\nwrong data byte #%d should be 0x%x but was 0x%x", i, *dp, *cp);
-				printf("\ncp:");
+				(void)printf("\nwrong data byte #%d should be 0x%x but was 0x%x", i, *dp, *cp);
+				(void)printf("\ncp:");
 				cp = (u_char*)icp->icmp_data;
 				for (i = 0; i < DATA_LEN; ++i, ++cp) {
 
 					if ((i % 16) == 0)
-						printf("\n\t");
-					printf("%2x ", *cp);
+						(void)printf("\n\t");
+					(void)printf("%2x ", *cp);
 				}
-				printf("\ndp:");
+				(void)printf("\ndp:");
 				cp = &((u_char*)g_ping.pkt)[sizeof(struct ip) + ICMP_MINLEN];
 				for (i = 0; i < DATA_LEN; ++i, ++cp) {
 
 					if ((i % 16) == 0)
-						printf("\n\t");
-					printf("%2x ", *cp);
+						(void)printf("\n\t");
+					(void)printf("%2x ", *cp);
 				}
 				break;
 			}
@@ -561,18 +517,13 @@ int		create_socket(void) {
 
 	if (s < 0) {
 
-		printf("%s\n", strerror(errno));
+		(void)printf("%s\n", strerror(errno));
 		exit(1);
 	}
 
 	int hold = 1;
 	// Tell the socket to not add the ip header because we provide our own
 	setsockopt(s, IPPROTO_IP, IP_HDRINCL, (char*)&hold, sizeof(hold));
-
-	// int hold = IP_MAXPACKET + 128;
-	// (void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold, sizeof(hold));
-	// if (getuid() == 0)
-	// 	(void)setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&hold, sizeof(hold));
 
 	return (s);
 }
@@ -593,7 +544,7 @@ struct sockaddr_in	build_dest_addr() {
 		int error;
 		if ((error = getaddrinfo(g_ping.hostname, NULL, &hints, &result)) != 0) {
 
-			printf("ping: cannot resolve %s: Unknown host\n", g_ping.hostname);
+			(void)printf("ping: cannot resolve %s: Unknown host\n", g_ping.hostname);
 			exit(1);
 		}
 
@@ -651,7 +602,7 @@ void	pinger(void) {
 	g_ping.pkt = update_packet(g_ping.pkt);
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0)
-		printf("ping: sendto: %s\n", strerror(errno));
+		(void)printf("ping: sendto: %s\n", strerror(errno));
 	struct timeval now;
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
@@ -701,11 +652,11 @@ int		main(int ac, char **av) {
 	// First ping
 	char	addr[16];
 	inet_ntop(AF_INET, (void*)&g_ping.dest_addr.sin_addr.s_addr, addr, sizeof(addr));
-	printf("PING %s (%s): %d data bytes\n", g_ping.hostname, addr, DATA_LEN);
+	(void)printf("PING %s (%s): %d data bytes\n", g_ping.hostname, addr, DATA_LEN);
 
 	ssize_t sent = sendto(g_ping.s, (char*)g_ping.pkt, sizeof(struct ip) + ICMP_MINLEN + DATA_LEN, 0, (struct sockaddr*)&g_ping.dest_addr, sizeof(struct sockaddr_in));
 	if (sent < 0)
-		printf("ping: sendto: %s\n", strerror(errno));
+		(void)printf("ping: sendto: %s\n", strerror(errno));
 
 	(void)gettimeofday(&now, NULL);
 	g_ping.last_ping.tv32_sec = (u_int32_t)now.tv_sec;
@@ -740,7 +691,7 @@ int		main(int ac, char **av) {
 			if (g_ping.ntransmitted - g_ping.nreceived - 1 > g_ping.nmissedmax) {
 
 				g_ping.nmissedmax = g_ping.ntransmitted - g_ping.nreceived - 1;
-				printf(
+				(void)printf(
 					"Request timeout for icmp_seq %u\n",
 					g_ping.ntransmitted - 2
 				);
@@ -750,11 +701,11 @@ int		main(int ac, char **av) {
 		}
 		if (recv < 0) {
 
-			printf("%s\n", strerror(errno));
+			(void)printf("%s\n", strerror(errno));
 			exit(1);
 		} else if (recv == 0) {
 
-			printf("recvmsg len 0, Connection closed\n");
+			(void)printf("recvmsg len 0, Connection closed\n");
 			exit(1);
 		}
 		check_packet((char *)msg->msg_iov->iov_base, recv);
